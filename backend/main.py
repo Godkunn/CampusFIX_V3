@@ -134,12 +134,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-def get_password_hash(password): 
-    # CRITICAL FIX: Truncate password to 72 bytes
-    return pwd_context.hash(password[:72])
+def get_password_hash(password: str):
+    # Fix: Encode to bytes, truncate to 72 bytes, then hash
+    return pwd_context.hash(password.encode('utf-8')[:72])
 
-def verify_password(plain, hashed): 
-    return pwd_context.verify(plain[:72], hashed)
+def verify_password(plain_password, hashed_password):
+    # Fix: Verify using the truncated bytes
+    return pwd_context.verify(plain_password.encode('utf-8')[:72], hashed_password)
 
 def create_token(data: dict): return jwt.encode({**data, "exp": datetime.utcnow() + timedelta(days=7)}, SECRET_KEY, algorithm=ALGORITHM)
 
