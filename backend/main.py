@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 from enum import Enum
 from dotenv import load_dotenv
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -15,7 +16,8 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 
 # --- CONFIG ---
-SECRET_KEY = "campusfix_v3_secure_key"
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY", "campusfix_v3_secure_key")
 ALGORITHM = "HS256"
 DATABASE_URL = "sqlite:///./campusfix_v3.db"
 
@@ -49,11 +51,11 @@ class User(Base):
     
     # Student Fields
     enrollment_no = Column(String, nullable=True)
-    registration_no = Column(String, nullable=True) # Added
-    semester = Column(String, nullable=True)        # Added
     hostel = Column(String, nullable=True)
-    block = Column(String, nullable=True)           # Added
+    block = Column(String, nullable=True)
     room_no = Column(String, nullable=True)
+    semester = Column(String, nullable=True)
+    registration_no = Column(String, nullable=True) 
     
     # Official Fields
     phone = Column(String, nullable=True)
@@ -84,11 +86,11 @@ class UserRegister(BaseModel):
     password: str
     role: str
     enrollment_no: Optional[str] = None
-    registration_no: Optional[str] = None
-    semester: Optional[str] = None
+    registration_no: Optional[str] = None 
     hostel: Optional[str] = None
     block: Optional[str] = None
     room_no: Optional[str] = None
+    semester: Optional[str] = None
     phone: Optional[str] = None
     department: Optional[str] = None
 
@@ -132,12 +134,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-def get_password_hash(password: str):
-    # FIX: Truncate password to 72 bytes to prevent Bcrypt error
+def get_password_hash(password): 
+    # CRITICAL FIX: Truncate password to 72 bytes
     return pwd_context.hash(password[:72])
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password[:72], hashed_password)
+def verify_password(plain, hashed): 
+    return pwd_context.verify(plain[:72], hashed)
 
 def create_token(data: dict): return jwt.encode({**data, "exp": datetime.utcnow() + timedelta(days=7)}, SECRET_KEY, algorithm=ALGORITHM)
 
@@ -152,15 +154,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 # --- ROUTES ---
 @app.post("/register")
 def register(u: UserRegister, db: Session = Depends(get_db)):
-    if len(u.password) > 72:
-        raise HTTPException(status_code=400, detail="Password must be less than 72 characters.")
-        
     if db.query(User).filter(User.email == u.email).first(): raise HTTPException(400, "Email exists")
     
     db.add(User(
-        email=u.email, full_name=u.full_name, password_hash=get_password_hash(u.password), role=u.role,
-        enrollment_no=u.enrollment_no, registration_no=u.registration_no, semester=u.semester,
-        hostel=u.hostel, block=u.block, room_no=u.room_no, phone=u.phone, department=u.department
+        email=u.email, 
+        full_name=u.full_name, 
+        password_hash=get_password_hash(u.password), 
+        role=u.role,
+        enrollment_no=u.enrollment_no, 
+        registration_no=u.registration_no,
+        hostel=u.hostel, 
+        block=u.block, 
+        room_no=u.room_no, 
+        semester=u.semester,
+        phone=u.phone, 
+        department=u.department
     ))
     db.commit()
     return {"msg": "Success"}
@@ -168,8 +176,7 @@ def register(u: UserRegister, db: Session = Depends(get_db)):
 @app.post("/login")
 def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == form.username).first()
-    if not user or not verify_password(form.password, user.password_hash): 
-        raise HTTPException(400, "Invalid credentials")
+    if not user or not verify_password(form.password, user.password_hash): raise HTTPException(400, "Invalid credentials")
     return {"access_token": create_token({"sub": user.email}), "token_type": "bearer"}
 
 @app.get("/users/me")
@@ -228,13 +235,7 @@ def stats(user: User = Depends(get_current_user), db: Session = Depends(get_db))
     pending = db.query(Issue).filter(Issue.status == "Pending").count()
     resolved = db.query(Issue).filter(Issue.status == "Solved").count()
     my_issues = db.query(Issue).filter(Issue.owner_id == user.id).count()
-    
-    return {
-        "total_issues": total,
-        "pending": pending,
-        "resolved": resolved,
-        "my_issues": my_issues
-    }
+    return {"total_issues": total, "pending": pending, "resolved": resolved, "my_issues": my_issues}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
