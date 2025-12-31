@@ -23,11 +23,11 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-html,
-body {
+html, body {
   height: 100%;
   margin: 0;
   padding: 0;
+  overflow-x: hidden; /* Prevents horizontal scroll glitches on mobile */
 }
 
 #root {
@@ -38,10 +38,14 @@ body {
 
 /* ---------- BACKGROUND ---------- */
 body {
-  background: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop')
-    no-repeat center center fixed;
+  /* Using your local public file */
+  background-image: url('/campus-bg.avif');
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
   background-size: cover;
   color: var(--text-main);
+  background-color: #f8fafc; /* Fallback color */
 }
 
 body::before {
@@ -56,7 +60,7 @@ body::before {
   z-index: -1;
 }
 
-/* ---------- GLASS ---------- */
+/* ---------- GLASS COMPONENTS ---------- */
 .glass-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
@@ -73,7 +77,13 @@ body::before {
   box-shadow: 0 12px 40px rgba(31, 38, 135, 0.2);
 }
 
-/* ---------- INPUT ---------- */
+.auth-card {
+    /* Specific class for Login Card centering */
+    width: 400px;
+    max-width: 90%;
+}
+
+/* ---------- INPUTS ---------- */
 .glass-input {
   width: 100%;
   background: var(--input-bg);
@@ -124,6 +134,9 @@ body::before {
   font-weight: 600;
   transition: 0.2s;
   text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .btn-ghost:hover {
@@ -132,7 +145,15 @@ body::before {
   color: var(--primary);
 }
 
-/* ---------- LAYOUT ---------- */
+.google-btn {
+  /* Google Auth Button */
+  transition: transform 0.2s ease;
+}
+.google-btn:active {
+  transform: scale(0.98);
+}
+
+/* ---------- LAYOUT UTILITIES ---------- */
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -147,6 +168,13 @@ body::before {
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
 
+/* Stats Grid Default (Desktop) */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+
 /* ---------- BADGES ---------- */
 .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; display: inline-block; }
 .badge-pending { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
@@ -156,15 +184,73 @@ body::before {
 .badge-unnecessary { background:#f9fafb; color:#374151; border:1px solid #d1d5db; }
 
 /* =========================================================
-   📱 RESPONSIVE NAVIGATION UPGRADE
+   📱 RESPONSIVE NAVIGATION & COMPONENT UPGRADES
 =========================================================*/
 
 /* DEFAULT — Desktop */
 .mobile-menu-btn { display: none !important; }
 .mobile-menu-dropdown { display: none; }
 
-/* 📱 MOBILE & TABLET */
-@media(max-width: 1024px) {
+/* 📱 PHONE SPECIFIC (Max width 640px) */
+@media (max-width: 640px) {
+  
+  /* 1. DASHBOARD COMPRESSION */
+  .dashboard-banner {
+    padding: 1.5rem 1rem !important;
+  }
+  .dashboard-welcome-text {
+    font-size: 1.6rem !important;
+    line-height: 1.2 !important;
+  }
+  .dashboard-date {
+    font-size: 0.75rem !important;
+  }
+  
+  /* 2. STATS GRID - 4 IN 1 ROW (Compact) */
+  .stats-grid {
+    /* Changing to 2x2 for readability on small phones, 
+       but keeping them tight to save space */
+    grid-template-columns: repeat(2, 1fr) !important; 
+    gap: 10px !important;
+  }
+  
+  .stat-card {
+    padding: 15px !important;
+  }
+  .stat-number {
+    font-size: 1.5rem !important;
+  }
+
+  /* 3. CHATBOT SIZING */
+  .chatbot-widget {
+    bottom: 20px !important;
+    right: 10px !important;
+    width: 300px !important;
+  }
+  .chatbot-trigger-btn {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  
+  /* 4. AUTH CARD */
+  .auth-card {
+    width: 95% !important;
+    padding: 25px !important;
+    margin-top: -50px; /* Visual centering adjustment */
+  }
+
+  /* 5. MESS RATING STARS */
+  .star-container {
+    gap: 5px !important;
+  }
+  .star-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+/* 📱 TABLET & PHONE NAV (Max width 1024px) */
+@media (max-width: 1024px) {
 
   nav {
     padding: 1rem 1.5rem !important;
@@ -198,7 +284,7 @@ body::before {
 }
 
 /* BIG TV UI */
-@media(min-width:1600px){
+@media (min-width:1600px){
   .app-container { max-width:1600px !important; }
   body { font-size:18px; }
 }
@@ -209,7 +295,6 @@ body::before {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ---------- FADE ---------- */
 .fade-in { animation: fadeIn 0.5s ease-out; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

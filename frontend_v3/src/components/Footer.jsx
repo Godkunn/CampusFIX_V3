@@ -104,8 +104,8 @@ export default function Footer() {
                         Full Stack Lead
                       </div>
                       <div style={{ display: "flex", gap: "10px" }}>
-                        <a className="footer-icon" href="#"><Github size={14} /></a>
-                        <a className="footer-icon" href="#"><Linkedin size={14} /></a>
+                        <a className="footer-icon" href="https://github.com/Godkunn"><Github size={14} /></a>
+                        <a className="footer-icon" href="https://www.linkedin.com/in/ayush-chaudharyy/"><Linkedin size={14} /></a>
                       </div>
                     </div>
                   </div>

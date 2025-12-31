@@ -24,7 +24,8 @@ backend/venv/
 frontend_v3/node_modules/
 frontend_v3/dist/
 frontend_v3/.env
-
+frontend_v3/android
+frontend_v3/dist
 # --- SYSTEM ---
 .DS_Store
 .vscode/
@@ -66,3 +67,7 @@ Thumbs.db
 # --- Build Outputs ---
 dist/
 build/
+
+
+frontend_v3/public/manifest.json
+frontend_v3/public/firebase-messaging-sw.js
