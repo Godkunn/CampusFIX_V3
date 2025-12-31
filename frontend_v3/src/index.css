@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* -------- ROOT VARIABLES -------- */
+:root {
+  --primary: #4f46e5;   
+  --secondary: #06b6d4; 
+  --accent: #f43f5e;    
+
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --input-bg: rgba(255, 255, 255, 0.6);
+}
+
+/* ---------- GLOBAL RESET ---------- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+/* 🧠 IMPORTANT FIX
+Removes browser bottom margin = removes “white strip gap”
+Keeps footer flush at bottom */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Root handles layout stretching properly */
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- BACKGROUND ---------- */
+body {
+  background: url('https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=2070&auto=format&fit=crop')
+    no-repeat center center fixed;
+  background-size: cover;
+  color: var(--text-main);
+}
+
+/* Overlay for frosted glass feel */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.1)
+  );
+  backdrop-filter: blur(5px);
+  z-index: -1;
+}
+
+/* ---------- GLASS ELEMENTS ---------- */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+  padding: 2rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.2);
+}
+
+/* ---------- INPUTS ---------- */
+.glass-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text-main);
+  font-size: 1rem;
+  outline: none;
+  transition: 0.3s;
+  margin-bottom: 1rem;
+}
+
+.glass-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+  background: #ffffff;
+}
+
+/* ---------- BUTTONS ---------- */
+.btn-grad {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.3s;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+}
+.btn-grad:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #e2e8f0;
+  color: var(--text-main);
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+  text-decoration: none;
+}
+.btn-ghost:hover {
+  background: #ffffff;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* ---------- LAYOUT HELPERS ---------- */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.flex-center { display: flex; justify-content: center; align-items: center; min-height: 90vh; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-4 { gap: 1rem; }
+
+/* ---------- STATUS BADGES ---------- */
+.badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  display: inline-block;
+}
+.badge-pending { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
+.badge-resolved { background:#f0fdf4; color:#15803d; border:1px solid #86efac; }
+.badge-defected { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+.badge-duplicate { background:#eef2ff; color:#4338ca; border:1px solid #a5b4fc; }
+.badge-unnecessary { background:#f9fafb; color:#374151; border:1px solid #d1d5db; }
+
+/* ---------- RESPONSIVE ---------- */
+@media(max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* ---------- FADE IN ---------- */
+.fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
