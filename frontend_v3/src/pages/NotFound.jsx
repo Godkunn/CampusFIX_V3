@@ -13,6 +13,11 @@ export default function NotFound() {
       <div style={styles.orb1}></div>
       <div style={styles.orb2}></div>
 
+      {/* 🟢 SYSTEM STATUS GREEN NEON CORE */}
+      <div style={styles.greenRadar}></div>
+      <div style={styles.greenRing}></div>
+      <div style={styles.greenPulse}></div>
+
       {/* 🌟 Glass Card */}
       <div style={styles.card} className="glass-notfound">
 
@@ -23,25 +28,18 @@ export default function NotFound() {
           <div style={styles.glow}></div>
 
           {/* Logo */}
-          <img
-            src="/logo.png"
-            alt="CampusFix"
-            style={styles.logo}
-          />
+          <img src="/logo.png" alt="CampusFix" style={styles.logo} />
 
-          {/* Bot Character */}
-          <img
-            src="/botchar.png"
-            alt="Bot"
-            style={styles.bot}
-          />
+          {/* Bot */}
+          <img src="/botchar.png" alt="Bot" style={styles.bot} />
         </div>
 
-        {/* ⭐ Headings */}
         <h1 style={styles.title}>Hang Tight! 🛠️</h1>
 
         <p style={styles.subText}>
-          We are currently in a <b style={{ color: "#ef4444" }}>Technical Maintenance Phase</b>.
+          We are currently in a <b style={{ color: "#ef4444" }}>
+            Technical Maintenance Phase
+          </b>.
         </p>
 
         <p style={styles.desc}>
@@ -49,7 +47,6 @@ export default function NotFound() {
           We’ll be back online shortly!
         </p>
 
-        {/* 🎯 Buttons */}
         <div style={styles.buttons}>
           <button onClick={() => window.location.reload()} style={styles.retry}>
             <RefreshCw size={18} /> Retry
@@ -61,7 +58,8 @@ export default function NotFound() {
         </div>
 
         <p style={styles.footer}>
-          Thank you for your patience & support ❤️
+          System monitored • Secure • Stable 💚
+          <p>Thank you for your patience & support ❤️</p>
         </p>
       </div>
 
@@ -77,6 +75,25 @@ export default function NotFound() {
           0% { background-position: 0% 50% }
           50% { background-position: 100% 50% }
           100% { background-position: 0% 50% }
+        }
+
+        /* 🟢 ROTATING GREEN RING */
+        @keyframes rotateRing {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        /* 🟢 SCANNING RADAR SWEEP */
+        @keyframes radarSweep {
+          0% { transform: rotate(0deg); opacity: 0.7; }
+          100% { transform: rotate(360deg); opacity: 0.7; }
+        }
+
+        /* 🟢 HEARTBEAT PULSE */
+        @keyframes pulseGreen {
+          0% { transform: scale(0.9); opacity: 0.6; }
+          50% { transform: scale(1.15); opacity: 0.3; }
+          100% { transform: scale(0.9); opacity: 0.6; }
         }
 
         .glass-notfound {
@@ -106,8 +123,8 @@ const styles = {
       "linear-gradient(120deg, #ff7eb3, #ec4899, #8b5cf6, #3b82f6, #22d3ee)",
     backgroundSize: "400% 400%",
     animation: "neonFlow 14s ease infinite",
-    opacity: 0.65,
-    zIndex: -2,
+    opacity: 0.55,
+    zIndex: -3,
   },
 
   orb1: {
@@ -119,6 +136,7 @@ const styles = {
     filter: "blur(35px)",
     top: "10%",
     left: "8%",
+    zIndex: -2,
   },
 
   orb2: {
@@ -130,6 +148,48 @@ const styles = {
     filter: "blur(32px)",
     bottom: "8%",
     right: "8%",
+    zIndex: -2,
+  },
+
+  /* 🟢 Green Neon Backend Effects */
+  greenRadar: {
+    position: "absolute",
+    width: 650,
+    height: 650,
+    borderRadius: "50%",
+    border: "2px dashed rgba(34,197,94,0.6)",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    animation: "rotateRing 16s linear infinite",
+    opacity: 0.8,
+    zIndex: -1,
+  },
+
+  greenRing: {
+    position: "absolute",
+    width: 780,
+    height: 780,
+    borderRadius: "50%",
+    border: "3px solid rgba(16,185,129,0.45)",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    animation: "radarSweep 10s linear infinite",
+    zIndex: -1,
+  },
+
+  greenPulse: {
+    position: "absolute",
+    width: 300,
+    height: 300,
+    borderRadius: "50%",
+    background: "radial-gradient(circle, rgba(16,185,129,0.35), rgba(0,0,0,0))",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    animation: "pulseGreen 3.5s infinite ease-in-out",
+    zIndex: -1,
   },
 
   card: {
@@ -138,7 +198,7 @@ const styles = {
     padding: "38px 32px",
     borderRadius: 26,
     border: "1px solid rgba(255,255,255,0.7)",
-    background: "rgba(255,255,255,0.75)",
+    background: "rgba(255,255,255,0.78)",
     textAlign: "center",
     color: "#0f172a",
     boxShadow: "0 35px 80px rgba(0,0,0,0.25)",
@@ -158,15 +218,12 @@ const styles = {
     width: 120,
     height: 120,
     borderRadius: "50%",
-    background: "rgba(255,255,255,0.35)",
+    background: "rgba(255,255,255,0.4)",
     filter: "blur(4px)",
     animation: "float 3.5s infinite ease-in-out",
   },
 
-  logo: {
-    width: 85,
-    zIndex: 2,
-  },
+  logo: { width: 85, zIndex: 2 },
 
   bot: {
     width: 120,

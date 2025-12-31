@@ -15,7 +15,7 @@
   --input-bg: rgba(255, 255, 255, 0.6);
 }
 
-/* ---------- GLOBAL RESET ---------- */
+/* ---------- RESET ---------- */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -23,9 +23,6 @@
   font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
-/* 🧠 IMPORTANT FIX
-Removes browser bottom margin = removes “white strip gap”
-Keeps footer flush at bottom */
 html,
 body {
   height: 100%;
@@ -33,7 +30,6 @@ body {
   padding: 0;
 }
 
-/* Root handles layout stretching properly */
 #root {
   min-height: 100%;
   display: flex;
@@ -48,12 +44,10 @@ body {
   color: var(--text-main);
 }
 
-/* Overlay for frosted glass feel */
 body::before {
   content: "";
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
+  inset: 0;
   background: linear-gradient(135deg,
     rgba(255, 255, 255, 0.4),
     rgba(255, 255, 255, 0.1)
@@ -62,7 +56,7 @@ body::before {
   z-index: -1;
 }
 
-/* ---------- GLASS ELEMENTS ---------- */
+/* ---------- GLASS ---------- */
 .glass-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(20px);
@@ -79,7 +73,7 @@ body::before {
   box-shadow: 0 12px 40px rgba(31, 38, 135, 0.2);
 }
 
-/* ---------- INPUTS ---------- */
+/* ---------- INPUT ---------- */
 .glass-input {
   width: 100%;
   background: var(--input-bg);
@@ -114,6 +108,7 @@ body::before {
   letter-spacing: 1px;
   box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
 }
+
 .btn-grad:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
@@ -130,13 +125,14 @@ body::before {
   transition: 0.2s;
   text-decoration: none;
 }
+
 .btn-ghost:hover {
   background: #ffffff;
   border-color: var(--primary);
   color: var(--primary);
 }
 
-/* ---------- LAYOUT HELPERS ---------- */
+/* ---------- LAYOUT ---------- */
 .app-container {
   min-height: 100vh;
   display: flex;
@@ -150,29 +146,70 @@ body::before {
 }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
-.flex-center { display: flex; justify-content: center; align-items: center; min-height: 90vh; }
-.flex-between { display: flex; justify-content: space-between; align-items: center; }
-.gap-4 { gap: 1rem; }
 
-/* ---------- STATUS BADGES ---------- */
-.badge {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  display: inline-block;
-}
+/* ---------- BADGES ---------- */
+.badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; display: inline-block; }
 .badge-pending { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
 .badge-resolved { background:#f0fdf4; color:#15803d; border:1px solid #86efac; }
 .badge-defected { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
 .badge-duplicate { background:#eef2ff; color:#4338ca; border:1px solid #a5b4fc; }
 .badge-unnecessary { background:#f9fafb; color:#374151; border:1px solid #d1d5db; }
 
-/* ---------- RESPONSIVE ---------- */
-@media(max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+/* =========================================================
+   📱 RESPONSIVE NAVIGATION UPGRADE
+=========================================================*/
 
-/* ---------- FADE IN ---------- */
+/* DEFAULT — Desktop */
+.mobile-menu-btn { display: none !important; }
+.mobile-menu-dropdown { display: none; }
+
+/* 📱 MOBILE & TABLET */
+@media(max-width: 1024px) {
+
+  nav {
+    padding: 1rem 1.5rem !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .mobile-menu-btn {
+    display: block !important;
+  }
+
+  .desktop-menu {
+    display: none !important;
+  }
+
+  .mobile-menu-dropdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  h1 { font-size: 1.7rem !important; }
+}
+
+/* BIG TV UI */
+@media(min-width:1600px){
+  .app-container { max-width:1600px !important; }
+  body { font-size:18px; }
+}
+
+/* Animation */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- FADE ---------- */
 .fade-in { animation: fadeIn 0.5s ease-out; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

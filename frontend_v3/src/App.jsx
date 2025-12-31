@@ -1,6 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { LogOut } from 'lucide-react'; 
+import { LogOut, Menu, X } from 'lucide-react';
 import api from './api';
 import { getMessaging, onMessage } from "firebase/messaging";
 
@@ -166,10 +166,14 @@ export default function App() {
 
 function Navbar({ user, logout }) {
   const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const isActive = (path) =>
     location.pathname === path
       ? { background: '#4f46e5', color: 'white', borderColor: '#4f46e5' }
       : {};
+
+  const closeMenu = () => setIsMenuOpen(false);
 
   return (
     <nav
@@ -179,96 +183,134 @@ function Navbar({ user, logout }) {
         width: 'calc(100% - 40px)',
         maxWidth: '1200px',
         padding: '1rem 2rem',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         position: 'sticky',
         top: 20,
         zIndex: 100
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <img
-          src="/logo.png"
-          alt="CF"
-          style={{ width: '45px', height: '45px', objectFit: 'contain' }}
-          onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextSibling.style.display = 'flex';
-          }}
-        />
-        <div
-          style={{
-            width: '45px',
-            height: '45px',
-            background: 'linear-gradient(135deg, #4f46e5, #ec4899)',
-            borderRadius: '12px',
-            display: 'none',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontWeight: 'bold'
-          }}
-        >
-          CF
-        </div>
 
-        <div>
-          <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#1e293b', lineHeight: 1 }}>
-            CampusFix
-          </div>
+      {/* ---------- TOP ROW ---------- */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+        {/* LOGO + TEXT */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <img
+            src="/logo.png"
+            alt="CF"
+            style={{ width: '45px', height: '45px', objectFit: 'contain' }}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+
           <div
             style={{
-              fontSize: '0.75rem',
-              fontWeight: '700',
-              color: '#4f46e5',
-              textTransform: 'uppercase',
-              letterSpacing: '1px'
+              width: '45px',
+              height: '45px',
+              background: 'linear-gradient(135deg, #4f46e5, #ec4899)',
+              borderRadius: '12px',
+              display: 'none',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 'bold'
             }}
           >
-            {user.role} Portal
+            CF
+          </div>
+
+          <div>
+            <div style={{ fontSize: '1.4rem', fontWeight: '800', color: '#1e293b', lineHeight: 1 }}>
+              CampusFix
+            </div>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                color: '#4f46e5',
+                textTransform: 'uppercase',
+                letterSpacing: '1px'
+              }}
+            >
+              {user.role} Portal
+            </div>
           </div>
         </div>
+
+        {/* -------- HAMBURGER BUTTON (MOBILE ONLY - CSS CONTROLS VISIBILITY) -------- */}
+        <button
+          className="mobile-menu-btn"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1e293b' }}
+        >
+          {isMenuOpen ? <X size={30} /> : <Menu size={30} />}
+        </button>
+
+        {/* -------- DESKTOP MENU -------- */}
+        <div className="desktop-menu" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <NavLinks isActive={isActive} logout={logout} closeMenu={() => {}} />
+        </div>
+
       </div>
 
-      <div
+      {/* -------- MOBILE DROPDOWN MENU -------- */}
+      {isMenuOpen && (
+        <div className="mobile-menu-dropdown">
+          <NavLinks isActive={isActive} logout={logout} closeMenu={closeMenu} isMobile />
+        </div>
+      )}
+
+    </nav>
+  );
+}
+
+/* -------------------------------------------
+   REUSABLE NAV LINKS COMPONENT
+-------------------------------------------- */
+function NavLinks({ isActive, logout, closeMenu, isMobile }) {
+
+  const base = isMobile
+    ? { width: '100%', justifyContent: 'flex-start', padding: '14px', fontSize: '1.05rem' }
+    : {};
+
+  return (
+    <>
+      <Link to="/dashboard" onClick={closeMenu} className="btn-ghost" style={{ ...isActive('/dashboard'), ...base }}>
+        📊 Dashboard
+      </Link>
+
+      <Link to="/issues" onClick={closeMenu} className="btn-ghost" style={{ ...isActive('/issues'), ...base }}>
+        ⚠️ Issues
+      </Link>
+
+      <Link to="/contacts" onClick={closeMenu} className="btn-ghost" style={{ ...isActive('/contacts'), ...base }}>
+        📞 Contacts
+      </Link>
+
+      <Link to="/profile" onClick={closeMenu} className="btn-ghost" style={{ ...isActive('/profile'), ...base }}>
+        👤 Profile
+      </Link>
+
+      <button
+        onClick={() => {
+          logout();
+          closeMenu();
+        }}
+        className="btn-ghost"
         style={{
+          borderColor: '#ef4444',
+          color: '#ef4444',
           display: 'flex',
-          gap: '12px',
-          flexWrap: 'wrap',
-          justifyContent: 'flex-end',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '8px',
+          padding: '10px 16px',
+          ...base
         }}
       >
-        <Link to="/dashboard" className="btn-ghost" style={isActive('/dashboard')}>
-          📊 <span className="hide-mobile">Dashboard</span>
-        </Link>
-        <Link to="/issues" className="btn-ghost" style={isActive('/issues')}>
-          ⚠️ <span className="hide-mobile">Issues</span>
-        </Link>
-        <Link to="/contacts" className="btn-ghost" style={isActive('/contacts')}>
-          📞 <span className="hide-mobile">Contacts</span>
-        </Link>
-        <Link to="/profile" className="btn-ghost" style={isActive('/profile')}>
-          👤 <span className="hide-mobile">Profile</span>
-        </Link>
-
-        <button
-          onClick={logout}
-          className="btn-ghost"
-          style={{
-            borderColor: '#ef4444',
-            color: '#ef4444',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '10px 16px'
-          }}
-        >
-          <LogOut size={18} />
-          <span style={{ fontWeight: 700 }}>Logout</span>
-        </button>
-      </div>
-    </nav>
+        <LogOut size={18} />
+        <span style={{ fontWeight: 700 }}>Logout</span>
+      </button>
+    </>
   );
 }
