@@ -3,7 +3,9 @@ import os
 import csv
 import io
 import httpx # Required for Chatbot
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+# IST (UTC + 5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
 from typing import Optional, List
 from enum import Enum
 from dotenv import load_dotenv
@@ -25,7 +27,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, case, or_, Float
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -43,15 +45,26 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 if not SECRET_KEY:
-    raise ValueError("⚠️  CRITICAL: SECRET_KEY not found in Environment Variables!")
-# getting API key from environment variable or .env file
+    # Fallback only for local testing if env is missing, but warn user
+    print("⚠️  WARNING: SECRET_KEY not found. Using unsafe default for testing.")
+    SECRET_KEY = "campusfix_unsafe_fallback_key"
+
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
+# --- DATABASE CONNECTION LOGIC ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./campusfix_v3.db")
+
+# Fix for Render/Supabase URLs starting with "postgres://"
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+# Check which DB we are connecting to
+if "sqlite" in DATABASE_URL:
+    print("💽 Connecting to LOCAL SQLite Database...")
+    connect_args = {"check_same_thread": False}
+else:
+    print("☁️  Connecting to REMOTE PostgreSQL (Supabase)...")
+    connect_args = {}
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -83,10 +96,9 @@ def init_google_sheets():
     else:
         print("⚠️ Notice: google_credentials.json not found. Sheets integration disabled.")
 
-# --- DATE HELPER (Must be defined before usage) ---
+# --- DATE HELPER ---
 def get_current_week_start():
-    today = datetime.utcnow()
-    # Monday = 0, Sunday = 6.
+    today = datetime.now(IST)
     start = today - timedelta(days=today.weekday())
     return start.strftime("%Y-%m-%d")
 
@@ -95,7 +107,6 @@ def append_issue_to_sheet(issue_data, user_data):
     if not SHEETS_CLIENT: return
     try:
         sheet = SHEETS_CLIENT.open("CampusFix_Issues_Database").sheet1
-        # Check first row for headers
         try:
             headers = sheet.row_values(1)
         except:
@@ -106,7 +117,7 @@ def append_issue_to_sheet(issue_data, user_data):
         
         row = [
             issue_data.id,
-            str(datetime.utcnow().date()),
+            str(datetime.now(IST).date()),
             user_data.full_name,
             user_data.email,
             user_data.hostel,
@@ -127,7 +138,6 @@ def append_rating_to_sheet(rating_data, user_data):
     if not SHEETS_CLIENT: return
     try:
         sheet = SHEETS_CLIENT.open("CampusFix_Mess_Ratings").sheet1
-        # Check first row for headers
         try:
             headers = sheet.row_values(1)
         except:
@@ -137,7 +147,7 @@ def append_rating_to_sheet(rating_data, user_data):
             sheet.append_row(["Date", "Student", "Hostel", "Mess Name", "Hygiene (1-5)", "Taste (1-5)", "Quality (1-5)", "Review", "Suggestions"])
         
         row = [
-            str(datetime.utcnow().date()),
+            str(datetime.now(IST).date()),
             user_data.full_name,
             user_data.hostel,
             rating_data.mess_name,
@@ -258,6 +268,7 @@ class Issue(Base):
     owner = relationship("User")
     comments = relationship("Comment", order_by=Comment.created_at.asc())
 
+# Create Tables automatically if they don't exist
 Base.metadata.create_all(bind=engine)
 
 # ==========================================
@@ -386,7 +397,7 @@ def verify_password(plain, hashed):
     return pwd_context.verify(plain.encode('utf-8')[:72], hashed)
 
 def create_token(data: dict):
-    return jwt.encode({**data, "exp": datetime.utcnow() + timedelta(days=7)}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({**data, "exp": datetime.now(IST) + timedelta(days=7)}, SECRET_KEY, algorithm=ALGORITHM)
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
@@ -629,7 +640,7 @@ def create_issue(i: IssueCreate, background_tasks: BackgroundTasks, user: User =
 
 @app.get("/issues")
 def list_issues(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    three_days_ago = datetime.utcnow() - timedelta(days=3)
+    three_days_ago = datetime.now(IST) - timedelta(days=3)
     stale = db.query(Issue).filter(
         Issue.priority != "High", 
         Issue.created_at < three_days_ago, 
@@ -772,12 +783,12 @@ def download_report(type: str, range: str, format: str, user: User = Depends(get
     if user.role == 'student': raise HTTPException(403, "Admins only")
 
     # 1. Advanced Date Logic
-    query_date = datetime.utcnow()
+    query_date = datetime.now(IST)
     title_range = ""
     
     if type == 'issues':
         if range == 'today': 
-            query_date = datetime.combine(datetime.utcnow().date(), datetime.min.time()) # Start of today
+            query_date = datetime.combine(datetime.now(IST).date(), datetime.min.time()) 
             title_range = "Today's Report"
         elif range == 'yesterday':
             query_date -= timedelta(days=1) 
