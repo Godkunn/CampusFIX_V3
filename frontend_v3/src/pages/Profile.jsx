@@ -1,22 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
 import { useAuth } from '../App';
-import { Lock, Edit3, ShieldCheck, AlertTriangle, Camera, Save, X } from 'lucide-react';
+import { Lock, Edit3, ShieldCheck, AlertTriangle, Camera, Save, X, Check, ZoomIn, ZoomOut } from 'lucide-react';
+import Cropper from 'react-easy-crop';
 
 export default function Profile() {
   const { user, login } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  
-  // FIX 1: Initialize state directly if 'user' exists
   const [formData, setFormData] = useState(user || {});
-  
   const [toast, setToast] = useState(null);
+  
+  // Hostel Request States
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestedHostel, setRequestedHostel] = useState('');
 
+  // --- CROPPER STATES ---
+  const [imageSrc, setImageSrc] = useState(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+
   const ALLOWED_HOSTELS = ["RNT", "Aryabhatta", "Gargi", "Dhalai", "Gomati"];
 
-  // FIX 2: Only update form data if 'user' object reference actually changes
   useEffect(() => {
     if (user) {
       setFormData(prev => ({ ...prev, ...user }));
@@ -30,12 +36,34 @@ export default function Profile() {
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  // 1. Triggered when user selects a file
+  const onFileChange = async (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
       const reader = new FileReader();
-      reader.onloadend = () => setFormData({ ...formData, profile_pic: reader.result });
+      reader.addEventListener('load', () => {
+        setImageSrc(reader.result);
+        setShowCropModal(true); // Open the crop modal
+      });
       reader.readAsDataURL(file);
+    }
+  };
+
+  // 2. Triggered when crop area changes
+  const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  // 3. Generate the final cropped image
+  const showCroppedImage = async () => {
+    try {
+      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
+      setFormData({ ...formData, profile_pic: croppedImage });
+      setShowCropModal(false);
+      setImageSrc(null); // Reset
+    } catch (e) {
+      console.error(e);
+      showToast('error', 'Failed to crop image');
     }
   };
 
@@ -65,10 +93,10 @@ export default function Profile() {
   };
 
   const getTrustColor = (score) => {
-    if (score >= 10) return '#10b981'; // Emerald
-    if (score >= 5) return '#3b82f6';  // Blue
-    if (score >= 0) return '#f59e0b';  // Amber
-    return '#ef4444';                  // Red
+    if (score >= 10) return '#10b981'; 
+    if (score >= 5) return '#3b82f6';  
+    if (score >= 0) return '#f59e0b';  
+    return '#ef4444';                  
   };
 
   return (
@@ -79,6 +107,52 @@ export default function Profile() {
         <div className={`glass-toast ${toast.type}`}>
           <span>{toast.type === 'error' ? '⚠️' : '✅'}</span>
           {toast.message}
+        </div>
+      )}
+
+      {/* --- CROP MODAL (NEW) --- */}
+      {showCropModal && (
+        <div className="glass-modal-overlay">
+          <div className="glass-card crop-modal-content">
+            <h3 className="section-title">Adjust Profile Picture</h3>
+            <div className="crop-container">
+              <Cropper
+                image={imageSrc}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                cropShape="round"
+                showGrid={false}
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
+              />
+            </div>
+            
+            <div className="slider-container">
+              <ZoomOut size={16} className="slider-icon" />
+              <input
+                type="range"
+                value={zoom}
+                min={1}
+                max={3}
+                step={0.1}
+                aria-labelledby="Zoom"
+                onChange={(e) => setZoom(e.target.value)}
+                className="zoom-slider"
+              />
+              <ZoomIn size={16} className="slider-icon" />
+            </div>
+
+            <div className="modal-actions">
+              <button onClick={() => { setShowCropModal(false); setImageSrc(null); }} className="glass-btn secondary">
+                <X size={16} /> Cancel
+              </button>
+              <button onClick={showCroppedImage} className="glass-btn primary">
+                <Check size={16} /> Set Profile Picture
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -104,32 +178,33 @@ export default function Profile() {
       {/* Main Profile Container */}
       <div className="profile-container">
         
-        {/* NEW: Wrapper for the rotating thin border around the card */}
         <div className="card-border-wrapper">
           <div className="card-vibgyor-border"></div>
           
-          {/* Main Card with Aurora Background INSIDE */}
           <div className="glass-card main-card aurora-card-bg">
             
-            {/* Header / Avatar Section */}
             <div className="profile-header">
               
-              {/* Avatar with Rotating Ring */}
+              {/* Avatar Section */}
               <div className="avatar-wrapper-outer">
                 <div className="avatar-vibgyor-ring"></div>
+                
+                {/* 1. Inner Container: HIDDEN OVERFLOW (Only for image) */}
                 <div className="avatar-container-inner">
                   <img 
-                    src={formData.profile_pic || `https://ui-avatars.com/api/?name=${user.full_name}&background=random`} 
+                    src={formData.profile_pic || `https://ui-avatars.com/api/?name=${user?.full_name || 'User'}&background=random`} 
                     alt="Profile" 
                     className="avatar-img" 
                   />
-                  {isEditing && (
+                </div>
+
+                {/* 2. Camera Button: VISIBLE (Outside inner container, inside outer wrapper) */}
+                {isEditing && (
                     <label className="edit-avatar-btn">
                       <Camera size={16} />
-                      <input type="file" hidden accept="image/*" onChange={handleImage} />
+                      <input type="file" hidden accept="image/*" onChange={onFileChange} />
                     </label>
                   )}
-                </div>
               </div>
 
               <h2 className="user-name">{user.full_name}</h2>
@@ -234,7 +309,7 @@ export default function Profile() {
       </div>
 
       <style>{`
-        /* --- 1. GENERAL PAGE SETUP --- */
+        /* --- GENERAL PAGE SETUP --- */
         .page-wrapper {
           min-height: 100vh;
           width: 100%;
@@ -243,7 +318,7 @@ export default function Profile() {
           justify-content: center;
           padding: 20px 15px;
           font-family: 'Inter', sans-serif;
-          background: transparent; /* Clean outer background */
+          background: transparent;
         }
         
         .profile-container {
@@ -251,7 +326,7 @@ export default function Profile() {
           max-width: 650px;
         }
 
-        /* --- 2. ROTATING BORDER WRAPPER --- */
+        /* --- BORDERS & ANIMATIONS --- */
         @keyframes spinSlow {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
@@ -259,15 +334,15 @@ export default function Profile() {
 
         .card-border-wrapper {
           position: relative;
-          padding: 3px; /* Thickness of the rotating border */
-          border-radius: 26px; /* Slightly larger than card */
+          padding: 3px;
+          border-radius: 26px;
           overflow: hidden;
           background: transparent;
         }
 
         .card-vibgyor-border {
           position: absolute;
-          inset: -50%; /* Extend far beyond to ensure coverage during rotation */
+          inset: -50%;
           width: 200%;
           height: 200%;
           background: conic-gradient(
@@ -280,7 +355,6 @@ export default function Profile() {
           left: -50%;
         }
 
-        /* --- 3. MAIN CARD (Aurora BG Inside) --- */
         @keyframes gradientMove {
           0% { background-position: 0% 50%; }
           50% { background-position: 100% 50%; }
@@ -297,13 +371,12 @@ export default function Profile() {
         }
 
         .aurora-card-bg {
-          /* The colorful background is now confined HERE */
           background: linear-gradient(-45deg, #fce7f3, #e0e7ff, #f3e8ff, #fae8ff);
           background-size: 400% 400%;
           animation: gradientMove 15s ease infinite;
         }
 
-        /* --- 4. AVATAR RING --- */
+        /* --- AVATAR & CROPPER --- */
         .avatar-wrapper-outer {
           position: relative;
           width: 114px;
@@ -312,7 +385,9 @@ export default function Profile() {
           display: flex;
           align-items: center;
           justify-content: center;
+          /* Important: Parent does NOT have overflow hidden, so camera can pop out */
         }
+        
         .avatar-vibgyor-ring {
           position: absolute;
           inset: 0;
@@ -324,38 +399,96 @@ export default function Profile() {
           filter: blur(2px); 
           opacity: 0.8;
         }
+
         .avatar-container-inner {
           position: relative;
           width: 106px;
           height: 106px;
-          background: white;
           border-radius: 50%;
-          padding: 3px;
-          z-index: 2;
+          background: #ffffff;
+          padding: 0;
+          display: block; 
+          z-index: 5;
+          border: 3px solid white;
+          overflow: hidden; /* Only crops the image */
         }
+
         .avatar-img {
-          width: 100%; height: 100%;
-          border-radius: 50%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100% !important; 
+          height: 100% !important; 
           object-fit: cover;
-          display: block;
-        }
-        .edit-avatar-btn {
-          position: absolute; bottom: 0; right: 0;
-          background: #1e293b; color: white;
-          width: 32px; height: 32px;
           border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          cursor: pointer;
-          transition: transform 0.2s;
-          z-index: 3;
+          display: block;
+          z-index: 1;
+        }
+
+        /* --- CAMERA BUTTON (FIXED) --- */
+        .edit-avatar-btn {
+          position: absolute;
+          bottom: 5px;   /* Adjusted to align nicely on the ring */
+          right: 5px;    /* Adjusted to align nicely on the ring */
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+          background: #1e293b;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border: 2px solid white;
+          cursor: pointer;
+          z-index: 20;   /* Higher than everything */
+          transition: transform 0.2s;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
         .edit-avatar-btn:hover { transform: scale(1.1); }
 
+        /* --- CROP MODAL STYLES --- */
+        .crop-modal-content {
+           padding: 20px;
+           width: 95%;
+           max-width: 500px;
+           background: white;
+           display: flex;
+           flex-direction: column;
+           gap: 15px;
+        }
+        
+        .crop-container {
+          position: relative;
+          width: 100%;
+          height: 300px;
+          background: #333;
+          border-radius: 12px;
+          overflow: hidden;
+        }
+        
+        .slider-container {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 0 10px;
+        }
+        
+        .zoom-slider {
+          flex: 1;
+          accent-color: #4f46e5;
+        }
+        
+        .slider-icon { color: #64748b; }
+        
+        .modal-actions {
+          display: flex;
+          gap: 10px;
+          justify-content: flex-end;
+          margin-top: 10px;
+        }
 
-        /* --- 5. GLASS UI ELEMENTS --- */
+        /* --- UI ELEMENTS --- */
         .glass-card {
-          /* Base glass styles for modal & main card */
           backdrop-filter: blur(20px);
           -webkit-backdrop-filter: blur(20px);
           border: 1px solid rgba(255, 255, 255, 0.6);
@@ -401,8 +534,6 @@ export default function Profile() {
         .glass-badge.role { background: rgba(99, 102, 241, 0.1); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.2); }
         .glass-badge.trust { background: rgba(255,255,255,0.8); border: 1px solid; display: flex; align-items: center; gap: 4px; }
 
-
-        /* --- INFO GRID --- */
         .info-grid { padding: 0 30px; display: grid; gap: 15px; }
         .detail-group {
           background: rgba(255,255,255,0.6);
@@ -426,8 +557,6 @@ export default function Profile() {
         .grid-2-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
         .split-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-
-        /* --- BUTTONS --- */
         .action-footer { padding: 25px 30px 30px; display: flex; justify-content: center; gap: 12px; }
         .glass-btn {
           border: none; cursor: pointer; border-radius: 12px; padding: 10px 24px;
@@ -440,8 +569,6 @@ export default function Profile() {
         .glass-btn.ghost { background: white; color: #1e293b; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         .full-width { width: 100%; justify-content: center; margin-top: 15px; }
 
-
-        /* --- MODAL & TOAST --- */
         .glass-modal-overlay {
           position: fixed; top: 0; left: 0; right: 0; bottom: 0;
           background: rgba(0,0,0,0.4); backdrop-filter: blur(8px);
@@ -464,8 +591,6 @@ export default function Profile() {
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes slideDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
-
-        /* --- RESPONSIVENESS --- */
         @media (max-width: 992px) { .profile-container { max-width: 550px; } }
         @media (max-width: 600px) {
           .page-wrapper { padding: 10px; align-items: flex-start; padding-top: 30px; }
@@ -486,6 +611,48 @@ export default function Profile() {
       `}</style>
     </div>
   );
+}
+
+// --- HELPER FUNCTION FOR CROPPING ---
+async function getCroppedImg(imageSrc, pixelCrop) {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(new Promise((res) => {
+          const reader = new FileReader();
+          reader.onloadend = () => res(reader.result);
+          reader.readAsDataURL(blob);
+      }));
+    }, 'image/jpeg');
+  });
+}
+
+function createImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener('load', () => resolve(image));
+    image.addEventListener('error', (error) => reject(error));
+    image.setAttribute('crossOrigin', 'anonymous');
+    image.src = url;
+  });
 }
 
 // Sub-components

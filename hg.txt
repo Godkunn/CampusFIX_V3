@@ -1,0 +1,23 @@
+now its to make our webpage more responsive and ineterative for users tell me which file sand which section
+i will have to update for the following but first keep laptop/tablet mostly same view
+
+but in tablet just introduce hamburger 3 dot option to simplify make more space availabe
+
+but for pgone make sure size is compaticveble for alost every mobile phone which is availabele:
+
+1st make this purple banner where date and welcome is there little small background pop top size dhow that other
+feature will be visible and clean ui also decrease font size so that evrything clearly visible in only one row all 4 folder
+counts small small,
+
+and then lets add live heatmap, quick action, campus map, and so on....
+
+keep heatmap tabbar same as image size around 1280*720 whatver is image width height and like wise keep map,
+so that it looks not streched.. clean simple ui
+
+and in last for students your activity and so on....
+also dec chatbot and its popup animation char size so that it doesnt take half of the screen
+next on login/register page fix it should be in exact middle and at bottom also fix google bar auth sign is getting out of box fix that
+
+chatbot little ui fix...
+dashboarbd
+not found loading... ead to dashboard
