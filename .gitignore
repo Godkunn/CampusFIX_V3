@@ -71,3 +71,5 @@ build/
 
 frontend_v3/public/manifest.json
 frontend_v3/public/firebase-messaging-sw.js
+
+hg.txt

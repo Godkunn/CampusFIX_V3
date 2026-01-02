@@ -17,11 +17,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 # --- PDF GENERATION IMPORTS ---
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 
-from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
@@ -54,6 +54,9 @@ PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 # --- DATABASE CONNECTION LOGIC ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./campusfix_v3.db")
 
+# --- DATABASE CONNECTION LOGIC ---
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./campusfix_v3.db")
+
 # Fix for Render/Supabase URLs starting with "postgres://"
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -61,12 +64,37 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 # Check which DB we are connecting to
 if "sqlite" in DATABASE_URL:
     print("💽 Connecting to LOCAL SQLite Database...")
-    connect_args = {"check_same_thread": False}
+    engine = create_engine(
+        DATABASE_URL, 
+        connect_args={"check_same_thread": False}
+    )
 else:
     print("☁️  Connecting to REMOTE PostgreSQL (Supabase)...")
-    connect_args = {}
+    
+    # 1. FORCE PORT 6543 (Transaction Mode)
+    # This is the "Magic Bullet" that lets 1000 students use the app.
+    if ":5432" in DATABASE_URL:
+        print("⚡ Auto-switching to Transaction Mode (Port 6543) for scale...")
+        DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+    # 2. STRICT SAFETY LIMITS
+    # We use pool_size=5 and max_overflow=0. 
+    # This guarantees you NEVER exceed Supabase limits, even if traffic spikes.
+    engine = create_engine(
+        DATABASE_URL,
+        pool_size=5,           # 5 steady connections (Safe & Fast)
+        max_overflow=0,        # Zero extra connections allowed (Prevents Crashes)
+        pool_timeout=30,       # Wait 30s before giving up
+        pool_recycle=300,      # Refresh every 5 mins to prevent "SSL EOF" errors
+        pool_pre_ping=True,    # Check connection health before using
+        connect_args={
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5
+        }
+    )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -777,145 +805,455 @@ def stats(user: User = Depends(get_current_user), db: Session = Depends(get_db))
     my_issues = db.query(Issue).filter(Issue.owner_id == user.id).count()
     return {"total_issues": total, "pending": pending, "resolved": resolved, "my_issues": my_issues}
 
-# --- REPORT GENERATION (PDF + EXCEL) ---
-@app.get("/reports/download")
-def download_report(type: str, range: str, format: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if user.role == 'student': raise HTTPException(403, "Admins only")
+# --- ADDITIONAL IMPORTS ---
+from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
+from reportlab.lib.units import inch
+from reportlab.platypus import Image as RLImage  # For logo
+from reportlab.platypus.flowables import HRFlowable
+import os
 
-    # 1. Advanced Date Logic
+# --- ENHANCED REPORT GENERATION (FIXED VERSION) ---
+@app.get("/reports/download")
+def download_report(
+    type: str, 
+    report_range: str = Query(..., alias="range"),
+    format: str = "pdf", 
+    user: User = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if user.role == 'student': 
+        raise HTTPException(403, "Admins only")
+
+    # 1. Advanced Date Logic (SAME AS BEFORE)
     query_date = datetime.now(IST)
     title_range = ""
     
     if type == 'issues':
-        if range == 'today': 
-            query_date = datetime.combine(datetime.now(IST).date(), datetime.min.time()) 
+        if report_range == 'today': 
+            query_date = datetime.combine(datetime.now(IST).date(), datetime.min.time())
+            query_date = query_date.replace(tzinfo=IST)
             title_range = "Today's Report"
-        elif range == 'yesterday':
-            query_date -= timedelta(days=1) 
+        elif report_range == 'yesterday':
+            yesterday = datetime.now(IST) - timedelta(days=1)
+            query_date = datetime.combine(yesterday.date(), datetime.min.time())
+            query_date = query_date.replace(tzinfo=IST)
             title_range = "Since Yesterday"
-        elif range == 'week': 
-            query_date -= timedelta(weeks=1)
+        elif report_range == '3days':
+            query_date = datetime.now(IST) - timedelta(days=3)
+            title_range = "Last 3 Days"
+        elif report_range == 'week': 
+            query_date = datetime.now(IST) - timedelta(weeks=1)
             title_range = "Past 7 Days"
-        elif range == 'month': 
-            query_date -= timedelta(days=30)
+        elif report_range == 'month': 
+            query_date = datetime.now(IST) - timedelta(days=30)
             title_range = "Last 30 Days"
-        elif range == 'semester': 
-            query_date -= timedelta(days=180) 
+        elif report_range == 'semester': 
+            query_date = datetime.now(IST) - timedelta(days=180) 
             title_range = "Full Semester History"
-        else: 
-            query_date = datetime.min 
+        else:
+            query_date = datetime.min.replace(tzinfo=IST)
             title_range = "All Time History"
     
     elif type == 'mess':
-        if range == 'week': 
-            query_date -= timedelta(weeks=1)
+        if report_range == 'week': 
+            query_date = datetime.now(IST) - timedelta(weeks=1)
             title_range = "This Week's Ratings"
-        elif range == 'month': 
-            query_date -= timedelta(days=30)
+        elif report_range == '2weeks': 
+            query_date = datetime.now(IST) - timedelta(weeks=2)
+            title_range = "Last 2 Weeks"
+        elif report_range == 'month': 
+            query_date = datetime.now(IST) - timedelta(days=30)
             title_range = "Last 30 Days"
-        elif range == '3months': 
-            query_date -= timedelta(days=90)
-            title_range = "Quarterly Report (3 Months)"
-        elif range == 'semester':
-            query_date -= timedelta(days=180)
+        elif report_range == 'semester':
+            query_date = datetime.now(IST) - timedelta(days=180)
             title_range = "Full Semester History"
         else:
-            query_date = datetime.min
+            query_date = datetime.min.replace(tzinfo=IST)
             title_range = "All Time History"
 
-    # 2. Fetch Data
+    # 2. Fetch Data & Calculate Stats
     data = []
     headers = []
-    filename = f"CampusFix_{type.capitalize()}_Report.pdf"
+    stats_summary = {}
 
     if type == 'issues':
         rows = db.query(Issue).filter(Issue.created_at >= query_date).all()
         headers = ["ID", "Date", "Location", "Category", "Priority", "Status", "Student"]
+        
+        total_issues = len(rows)
+        resolved = sum(1 for r in rows if r.status == 'Resolved' or r.status == 'Solved')
+        pending = sum(1 for r in rows if r.status == 'Pending')
+        in_progress = sum(1 for r in rows if r.status == 'In Progress')
+        high_priority = sum(1 for r in rows if r.priority == 'High')
+        
+        # Count by category
+        category_counts = {}
         for r in rows:
-            loc = f"{r.sub_location[:10]}..." if len(r.sub_location)>10 else r.sub_location
+            cat = r.category or "Other"
+            category_counts[cat] = category_counts.get(cat, 0) + 1
+        
+        stats_summary = {
+            'total': total_issues,
+            'resolved': resolved,
+            'pending': pending,
+            'in_progress': in_progress,
+            'high_priority': high_priority,
+            'resolution_rate': round((resolved / total_issues * 100) if total_issues > 0 else 0, 1),
+            'category_breakdown': category_counts
+        }
+        
+        for r in rows:
+            loc = f"{r.sub_location[:10]}..." if r.sub_location and len(r.sub_location)>10 else (r.sub_location or "-")
             data.append([
                 str(r.id), 
-                r.created_at.strftime("%Y-%m-%d"), 
+                r.created_at.strftime("%d %b %Y"), 
                 loc, 
-                r.category, 
-                r.priority, 
+                r.category or "-", 
+                r.priority or "-", 
                 r.status, 
                 r.owner.full_name if r.owner else "Unknown"
             ])
     
     elif type == 'mess':
         rows = db.query(MessRating).filter(MessRating.created_at >= query_date).all()
-        headers = ["Date", "Mess Hall", "Hygiene", "Taste", "Quality", "Review"]
+        headers = ["Date", "Mess Hall", "Hygiene", "Taste", "Quality", "Overall Rating", "Review"]
+        
+        total_ratings = len(rows)
+        avg_hygiene = round(sum(r.hygiene for r in rows if r.hygiene) / sum(1 for r in rows if r.hygiene), 2) if any(r.hygiene for r in rows) else 0
+        avg_taste = round(sum(r.taste for r in rows if r.taste) / sum(1 for r in rows if r.taste), 2) if any(r.taste for r in rows) else 0
+        avg_quality = round(sum(r.quality for r in rows if r.quality) / sum(1 for r in rows if r.quality), 2) if any(r.quality for r in rows) else 0
+        avg_overall = round((avg_hygiene + avg_taste + avg_quality) / 3, 2) if (avg_hygiene + avg_taste + avg_quality) > 0 else 0
+        
+        stats_summary = {
+            'total': total_ratings,
+            'avg_hygiene': avg_hygiene,
+            'avg_taste': avg_taste,
+            'avg_quality': avg_quality,
+            'avg_overall': avg_overall
+        }
+        
         for r in rows:
-            review_short = (r.review[:25] + '..') if r.review and len(r.review) > 25 else (r.review or "-")
+            overall = round((r.hygiene + r.taste + r.quality) / 3, 1) if all([r.hygiene, r.taste, r.quality]) else "-"
+            review_short = (r.review[:30] + '..') if r.review and len(r.review) > 30 else (r.review or "-")
             data.append([
-                r.created_at.strftime("%Y-%m-%d"), 
-                r.mess_name, 
-                str(r.hygiene), 
-                str(r.taste), 
-                str(r.quality), 
+                r.created_at.strftime("%d %b %Y"), 
+                r.mess_name or "-", 
+                str(r.hygiene) if r.hygiene else "-", 
+                str(r.taste) if r.taste else "-", 
+                str(r.quality) if r.quality else "-", 
+                str(overall),
                 review_short
             ])
 
-    # 3. Generate PROFESSIONAL PDF (LaTeX Style)
+    # 3. Generate ENHANCED PDF
     if format == 'pdf':
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=letter, 
+            rightMargin=40, 
+            leftMargin=40, 
+            topMargin=50, 
+            bottomMargin=50
+        )
         elements = []
         styles = getSampleStyleSheet()
+        
+        # Define Custom Styles
+        title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, fontName='Helvetica-Bold', textColor=colors.HexColor('#1e293b'), spaceAfter=0, alignment=2)  # RIGHT align
+        subtitle_style = ParagraphStyle('CustomSubtitle', parent=styles['Normal'], fontSize=14, fontName='Helvetica', textColor=colors.HexColor('#64748b'), spaceAfter=20, alignment=0)
+        header_meta_style = ParagraphStyle('HeaderMeta', parent=styles['Normal'], fontSize=10, fontName='Helvetica', textColor=colors.HexColor('#94a3b8'), spaceAfter=10)
+        stats_label_style = ParagraphStyle('StatsLabel', parent=styles['Normal'], fontSize=10, fontName='Helvetica', textColor=colors.HexColor('#64748b'), alignment=1)
+        stats_value_style = ParagraphStyle('StatsValue', parent=styles['Normal'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#4f46e5'), alignment=1, spaceAfter=5)
 
-        # -- HEADER WITH LOGO --
-        if os.path.exists("logo.png"):
-            im = Image("logo.png", width=0.8*inch, height=0.8*inch)
-            im.hAlign = 'LEFT'
-            elements.append(im)
+        # --- FIXED HEADER WITH LOGO IMAGE ---
+        logo_path = "logo.png"  # Path to your logo file
         
-        elements.append(Spacer(1, 12))
+        # Check if logo exists, otherwise use text fallback
+        if os.path.exists(logo_path):
+            logo = RLImage(logo_path, width=1.2*inch, height=1.2*inch)
+            logo.hAlign = 'LEFT'
+        else:
+            # Fallback: Create a styled text logo
+            logo = Paragraph("<b><font size=20 color='#4f46e5'>CAMPUS</font><br/><font size=20 color='#4f46e5'>FIX</font></b>", 
+                           ParagraphStyle('LogoText', parent=styles['Normal'], fontSize=20, fontName='Helvetica-Bold', textColor=colors.HexColor('#4f46e5'), alignment=0))
         
-        title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=24, spaceAfter=12, textColor=colors.HexColor('#1e293b'))
-        elements.append(Paragraph(f"CampusFix {type.capitalize()} Report", title_style))
+        title = Paragraph(f"<b>{type.capitalize()} Report</b>", title_style)
         
-        sub_style = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=12, textColor=colors.HexColor('#64748b'))
-        elements.append(Paragraph(f"<b>Range:</b> {title_range}  |  <b>Generated:</b> {datetime.now().strftime('%d %b %Y, %H:%M')}", sub_style))
+        header_data = [[logo, title]]
+        header_table = Table(header_data, colWidths=[2*inch, 4.5*inch])
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 15))
+
+        # Divider Line
+        elements.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#e2e8f0')))
+        elements.append(Spacer(1, 15))
+
+        # Report Metadata
+        gen_date = datetime.now(IST).strftime('%d %B %Y at %I:%M %p')
+        elements.append(Paragraph(f"<b>Report Period:</b> {title_range} | <b>Generated:</b> {gen_date} IST", header_meta_style))
         elements.append(Spacer(1, 20))
 
-        if data:
-            table_data = [headers] + data
-            t = Table(table_data, colWidths=[40, 80, 100, 100, 80, 80, 100] if type == 'issues' else [80, 100, 60, 60, 60, 150])
+        # --- STATISTICS SECTION ---
+        if stats_summary:
+            stats_data = []
+            if type == 'issues':
+                stats_data = [
+                    [
+                        Paragraph(str(stats_summary['total']), stats_value_style),
+                        Paragraph(str(stats_summary['resolved']), stats_value_style),
+                        Paragraph(str(stats_summary['pending']), stats_value_style),
+                        Paragraph(str(stats_summary['in_progress']), stats_value_style),
+                        Paragraph(f"{stats_summary['resolution_rate']}%", stats_value_style)
+                    ],
+                    [
+                        Paragraph("Total Issues", stats_label_style),
+                        Paragraph("Resolved", stats_label_style),
+                        Paragraph("Pending", stats_label_style),
+                        Paragraph("In Progress", stats_label_style),
+                        Paragraph("Resolution Rate", stats_label_style)
+                    ]
+                ]
+            else:
+                stats_data = [
+                    [
+                        Paragraph(str(stats_summary['total']), stats_value_style),
+                        Paragraph(f"{stats_summary['avg_hygiene']}", stats_value_style),
+                        Paragraph(f"{stats_summary['avg_taste']}", stats_value_style),
+                        Paragraph(f"{stats_summary['avg_quality']}", stats_value_style),
+                        Paragraph(f"{stats_summary['avg_overall']}", stats_value_style)
+                    ],
+                    [
+                        Paragraph("Total Ratings", stats_label_style),
+                        Paragraph("Avg Hygiene", stats_label_style),
+                        Paragraph("Avg Taste", stats_label_style),
+                        Paragraph("Avg Quality", stats_label_style),
+                        Paragraph("Overall Rating", stats_label_style)
+                    ]
+                ]
             
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4f46e5')), # Header Blue
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            stats_table = Table(stats_data, colWidths=[1.3*inch]*5)
+            stats_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#f1f5f9')),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')), # Light Gray Rows
-                ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
-                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 9),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f1f5f9')]) # Zebra Striping
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ('TOPPADDING', (0, 0), (-1, 0), 15),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 15),
+                ('TOPPADDING', (0, 1), (-1, 1), 10),
+                ('BOTTOMPADDING', (0, 1), (-1, 1), 10),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#e2e8f0')),
+                ('LINEBELOW', (0, 0), (-1, 0), 1, colors.HexColor('#e2e8f0')),
             ]))
-            elements.append(t)
-        else:
-            elements.append(Paragraph("No records found for this period.", styles['Normal']))
+            elements.append(stats_table)
+            elements.append(Spacer(1, 30))
+
+        # 🎨 FIXED VISUAL CHARTS SECTION
+        elements.append(Paragraph("<b>Visual Analytics</b>", ParagraphStyle('SectionTitle', parent=styles['Heading2'], fontSize=14, fontName='Helvetica-Bold', textColor=colors.HexColor('#1e293b'), spaceAfter=15)))
         
+        if type == 'issues' and stats_summary['total'] > 0:
+            # 📊 PIE CHART: Status Distribution (FIXED)
+            drawing1 = Drawing(250, 220)
+            
+            pie = Pie()
+            pie.x = 50
+            pie.y = 50
+            pie.width = 120
+            pie.height = 120
+            
+            pie_data = [
+                stats_summary['resolved'] if stats_summary['resolved'] > 0 else 0.1,
+                stats_summary['pending'] if stats_summary['pending'] > 0 else 0.1,
+                stats_summary['in_progress'] if stats_summary['in_progress'] > 0 else 0.1
+            ]
+            pie.data = pie_data
+            pie.labels = ['Resolved', 'Pending', 'In Progress']
+            pie.slices.strokeWidth = 1
+            pie.slices.strokeColor = colors.white
+            pie.slices[0].fillColor = colors.HexColor('#10b981')
+            pie.slices[1].fillColor = colors.HexColor('#ef4444')
+            pie.slices[2].fillColor = colors.HexColor('#f59e0b')
+            
+            # Add title
+            title_text = String(125, 190, 'Status Distribution', textAnchor='middle', fontSize=12, fillColor=colors.HexColor('#1e293b'), fontName='Helvetica-Bold')
+            drawing1.add(title_text)
+            drawing1.add(pie)
+            
+            # 📊 BAR CHART: Category Breakdown (FIXED)
+            drawing2 = Drawing(300, 220)
+            
+            categories = list(stats_summary.get('category_breakdown', {}).keys())[:5]
+            counts = [stats_summary.get('category_breakdown', {}).get(cat, 0) for cat in categories]
+            
+            if categories and counts:
+                bar = VerticalBarChart()
+                bar.x = 40
+                bar.y = 40
+                bar.height = 130
+                bar.width = 220
+                bar.data = [counts]
+                bar.categoryAxis.categoryNames = categories
+                bar.categoryAxis.labels.angle = 20
+                bar.categoryAxis.labels.fontSize = 8
+                bar.categoryAxis.labels.dx = -5
+                bar.categoryAxis.labels.dy = -5
+                bar.bars[0].fillColor = colors.HexColor('#4f46e5')
+                bar.bars[0].strokeColor = colors.HexColor('#4338ca')
+                bar.bars[0].strokeWidth = 1
+                bar.valueAxis.valueMin = 0
+                bar.valueAxis.valueMax = max(counts) + 2 if counts else 10
+                bar.valueAxis.valueStep = max(1, max(counts) // 5) if counts else 2
+                
+                # Add title
+                title_text2 = String(150, 190, 'Issues by Category', textAnchor='middle', fontSize=12, fillColor=colors.HexColor('#1e293b'), fontName='Helvetica-Bold')
+                drawing2.add(title_text2)
+                drawing2.add(bar)
+            
+            # Add charts side by side
+            chart_table = Table([[drawing1, drawing2]], colWidths=[3*inch, 3.5*inch])
+            chart_table.setStyle(TableStyle([
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ]))
+            elements.append(chart_table)
+            elements.append(Spacer(1, 25))
+            
+        elif type == 'mess' and stats_summary['total'] > 0:
+            # 📊 HORIZONTAL BARS: Rating Metrics (FIXED)
+            drawing3 = Drawing(500, 180)
+            
+            metrics = ['Hygiene', 'Taste', 'Quality', 'Overall']
+            values = [
+                stats_summary['avg_hygiene'],
+                stats_summary['avg_taste'],
+                stats_summary['avg_quality'],
+                stats_summary['avg_overall']
+            ]
+            
+            # Title
+            title_text3 = String(250, 160, 'Average Ratings Comparison', textAnchor='middle', fontSize=13, fillColor=colors.HexColor('#1e293b'), fontName='Helvetica-Bold')
+            drawing3.add(title_text3)
+            
+            y_start = 130
+            bar_height = 22
+            bar_spacing = 10
+            
+            for i, (metric, value) in enumerate(zip(metrics, values)):
+                y_pos = y_start - i * (bar_height + bar_spacing)
+                
+                # Background bar
+                bg_rect = Rect(120, y_pos, 300, bar_height)
+                bg_rect.fillColor = colors.HexColor('#f1f5f9')
+                bg_rect.strokeColor = colors.HexColor('#e2e8f0')
+                bg_rect.strokeWidth = 0.5
+                drawing3.add(bg_rect)
+                
+                # Value bar
+                value_width = (value / 5.0) * 300
+                val_rect = Rect(120, y_pos, value_width, bar_height)
+                val_rect.fillColor = colors.HexColor('#4f46e5')
+                val_rect.strokeColor = None
+                drawing3.add(val_rect)
+                
+                # Label
+                label = String(20, y_pos + 8, metric + ':', fontSize=11, fillColor=colors.HexColor('#1e293b'), fontName='Helvetica-Bold', textAnchor='start')
+                drawing3.add(label)
+                
+                # Value text
+                val_text = String(430, y_pos + 8, f"{value:.1f}/5.0", fontSize=10, fillColor=colors.HexColor('#4f46e5'), fontName='Helvetica-Bold', textAnchor='start')
+                drawing3.add(val_text)
+            
+            elements.append(drawing3)
+            elements.append(Spacer(1, 25))
+
+        # --- DATA TABLE SECTION ---
+        if data:
+            elements.append(Paragraph(f"<b>Detailed Records ({len(data)} entries)</b>", ParagraphStyle('SectionTitle', parent=styles['Heading2'], fontSize=12, fontName='Helvetica-Bold', textColor=colors.HexColor('#1e293b'), spaceAfter=12)))
+            
+            table_data = [headers] + data
+            if type == 'issues':
+                col_widths = [0.45*inch, 0.8*inch, 1.1*inch, 0.9*inch, 0.7*inch, 0.9*inch, 1.1*inch]
+            else:
+                col_widths = [0.8*inch, 0.9*inch, 0.7*inch, 0.7*inch, 0.7*inch, 0.8*inch, 1.5*inch]
+            
+            table = Table(table_data, colWidths=col_widths)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4f46e5')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('TOPPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+                ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 8.5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 1), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            ]))
+            
+            # Color coding for status
+            if type == 'issues':
+                for i in range(1, len(data) + 1):
+                    status = data[i-1][5]
+                    if 'Resolved' in status or 'Solved' in status:
+                        table.setStyle(TableStyle([('BACKGROUND', (5, i), (5, i), colors.HexColor('#dcfce7'))]))
+                    elif 'Progress' in status:
+                        table.setStyle(TableStyle([('BACKGROUND', (5, i), (5, i), colors.HexColor('#fef3c7'))]))
+                    elif 'Pending' in status:
+                        table.setStyle(TableStyle([('BACKGROUND', (5, i), (5, i), colors.HexColor('#fee2e2'))]))
+            
+            elements.append(table)
+        else:
+            elements.append(Paragraph("<b>No records found for this period.</b>", styles['Normal']))
+
+        # --- FOOTER SECTION ---
         elements.append(Spacer(1, 30))
-        footer_style = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, textColor=colors.gray, alignment=1) # Center
-        elements.append(Paragraph("Confidential Report • Generated by CampusFix AI System • Authorized Use Only", footer_style))
+        elements.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#e2e8f0')))
+        
+        footer_text = ParagraphStyle('Footer', parent=styles['Normal'], fontSize=8, fontName='Helvetica', textColor=colors.HexColor('#94a3b8'), alignment=1)
+        elements.append(Spacer(1, 10))
+        elements.append(Paragraph("📋 CampusFix Maintenance Portal | 🔐 Confidential Report | Generated by AI System<br/>⚖️ Authorized Personnel Only | Report valid for 30 days", footer_text))
 
         doc.build(elements)
         buffer.seek(0)
+        filename = f"CampusFix_{type}_{report_range}.pdf"
         return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
-    # Excel/CSV Fallback (Simple)
+    # Excel/CSV Export
     else:
         output = io.StringIO()
         writer = csv.writer(output)
+        writer.writerow([f"CampusFix {type.capitalize()} Report - {title_range}"])
+        writer.writerow([f"Generated: {datetime.now(IST).strftime('%d %B %Y at %I:%M %p IST')}"])
+        writer.writerow([])
+        
+        if stats_summary:
+            writer.writerow(["Summary Statistics"])
+            for key, value in stats_summary.items():
+                if key != 'category_breakdown':
+                    writer.writerow([key.replace('_', ' ').title(), value])
+            writer.writerow([])
+        
         writer.writerow(headers)
         writer.writerows(data)
+        
         output.seek(0)
-        filename = f"CampusFix_{type}_{range}.csv"
+        filename = f"CampusFix_{type}_{report_range}.csv"
         return StreamingResponse(io.BytesIO(output.getvalue().encode()), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 if __name__ == "__main__":
