@@ -71,11 +71,10 @@ if "sqlite" in DATABASE_URL:
 else:
     print("☁️  Connecting to REMOTE PostgreSQL (Supabase)...")
     
-    # 1. FORCE PORT 6543 (Transaction Mode)
-    # This is the "Magic Bullet" that lets 1000 students use the app.
-    if ":5432" in DATABASE_URL:
-        print("⚡ Auto-switching to Transaction Mode (Port 6543) for scale...")
-        DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
+    # 1. FORCE PORT 5432 (Session Mode) for Stability
+    if ":6543" in DATABASE_URL:
+        print("🔄 Switching to Session Mode (Port 5432) for stability...")
+        DATABASE_URL = DATABASE_URL.replace(":6543", ":5432")
 
     # 2. STRICT SAFETY LIMITS
     # We use pool_size=5 and max_overflow=0. 
