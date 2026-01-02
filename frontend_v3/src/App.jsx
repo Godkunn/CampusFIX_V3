@@ -29,21 +29,46 @@ export default function App() {
   const [loading, setLoading] = useState(() => !!localStorage.getItem('token'));
 
   // 1. Auth Check
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    
-    if (token) {
-      api.get('/users/me')
-        .then(res => setUser(res.data))
-        .catch(() => {
-          localStorage.removeItem('token');
-          setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  const cachedUser = localStorage.getItem('user');
+  
+  if (!token) {
+    setLoading(false);
+    return;
+  }
+  
+  // Load cached user immediately (instant render)
+  if (cachedUser) {
+    try {
+      const userData = JSON.parse(cachedUser);
+      setUser(userData);
+      setLoading(false); // ← Render immediately with cached data
+    } catch (e) {
+      console.error('Invalid cached user data:', e);
     }
-  }, []);
+  }
+  
+  // Verify token in background
+  api.get('/users/me')
+    .then(res => {
+      setUser(res.data);
+      localStorage.setItem('user', JSON.stringify(res.data));
+      if (!cachedUser) setLoading(false); // Only set if not loaded from cache
+    })
+    .catch((err) => {
+      console.error('Auth check failed:', err.message);
+      
+      // Only clear auth on real 401, not timeouts
+      if (err.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      }
+      
+      if (!cachedUser) setLoading(false);
+    });
+}, []);
 
   // 2. Firebase Foreground Notifications
   useEffect(() => {
@@ -82,12 +107,14 @@ export default function App() {
   }, []);
 
   const login = (userData, token) => { 
-    localStorage.setItem('token', token); 
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData); 
   };
   
   const logout = () => { 
-    localStorage.removeItem('token'); 
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setUser(null); 
     window.location.href = '/'; 
   };

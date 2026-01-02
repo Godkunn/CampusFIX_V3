@@ -2,24 +2,30 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Home, RefreshCw } from "lucide-react";
 
+
 export default function NotFound() {
   return (
     <div style={styles.wrapper}>
 
+
       {/* ✨ Animated Neon Mist Background */}
       <div style={styles.gradient}></div>
+
 
       {/* ✨ Soft Floating Light Orbs */}
       <div style={styles.orb1}></div>
       <div style={styles.orb2}></div>
+
 
       {/* 🟢 SYSTEM STATUS GREEN NEON CORE */}
       <div style={styles.greenRadar}></div>
       <div style={styles.greenRing}></div>
       <div style={styles.greenPulse}></div>
 
+
       {/* 🌟 Glass Card */}
       <div style={styles.card} className="glass-notfound">
+
 
         {/* 🔥 Logo + Bot */}
         <div style={styles.hero}>
@@ -27,14 +33,18 @@ export default function NotFound() {
           {/* Glow Aura */}
           <div style={styles.glow}></div>
 
+
           {/* Logo */}
           <img src="/logo.png" alt="CampusFix" style={styles.logo} />
+
 
           {/* Bot */}
           <img src="/botchar.png" alt="Bot" style={styles.bot} />
         </div>
 
+
         <h1 style={styles.title}>Hang Tight! 🛠️</h1>
+
 
         <p style={styles.subText}>
           We are currently in a <b style={{ color: "#ef4444" }}>
@@ -42,26 +52,31 @@ export default function NotFound() {
           </b>.
         </p>
 
+
         <p style={styles.desc}>
           The page may be moved or our servers are taking a short nap.
-          We’ll be back online shortly!
+          We'll be back online shortly!
         </p>
 
+
         <div style={styles.buttons}>
-          <button onClick={() => window.location.reload()} style={styles.retry}>
+          <Link to="/dashboard" style={styles.retry}>
             <RefreshCw size={18} /> Retry
-          </button>
+          </Link>
+
 
           <Link to="/dashboard" style={styles.home}>
             <Home size={18} /> Back Home
           </Link>
         </div>
 
+
         <p style={styles.footer}>
           System monitored • Secure • Stable 💚
           <p>Thank you for your patience & support ❤️</p>
         </p>
       </div>
+
 
       {/* Animations */}
       <style>{`
@@ -71,11 +86,13 @@ export default function NotFound() {
           100% { transform: translateY(0px) }
         }
 
+
         @keyframes neonFlow {
           0% { background-position: 0% 50% }
           50% { background-position: 100% 50% }
           100% { background-position: 0% 50% }
         }
+
 
         /* 🟢 ROTATING GREEN RING */
         @keyframes rotateRing {
@@ -83,11 +100,13 @@ export default function NotFound() {
           to { transform: rotate(360deg); }
         }
 
+
         /* 🟢 SCANNING RADAR SWEEP */
         @keyframes radarSweep {
           0% { transform: rotate(0deg); opacity: 0.7; }
           100% { transform: rotate(360deg); opacity: 0.7; }
         }
+
 
         /* 🟢 HEARTBEAT PULSE */
         @keyframes pulseGreen {
@@ -95,6 +114,7 @@ export default function NotFound() {
           50% { transform: scale(1.15); opacity: 0.3; }
           100% { transform: scale(0.9); opacity: 0.6; }
         }
+
 
         .glass-notfound {
           backdrop-filter: blur(18px);
@@ -104,6 +124,7 @@ export default function NotFound() {
     </div>
   );
 }
+
 
 /* ---- STYLES ---- */
 const styles = {
@@ -116,6 +137,7 @@ const styles = {
     overflow: "hidden",
   },
 
+
   gradient: {
     position: "absolute",
     inset: 0,
@@ -126,6 +148,7 @@ const styles = {
     opacity: 0.55,
     zIndex: -3,
   },
+
 
   orb1: {
     position: "absolute",
@@ -139,6 +162,7 @@ const styles = {
     zIndex: -2,
   },
 
+
   orb2: {
     position: "absolute",
     width: 200,
@@ -150,6 +174,7 @@ const styles = {
     right: "8%",
     zIndex: -2,
   },
+
 
   /* 🟢 Green Neon Backend Effects */
   greenRadar: {
@@ -166,6 +191,7 @@ const styles = {
     zIndex: -1,
   },
 
+
   greenRing: {
     position: "absolute",
     width: 780,
@@ -178,6 +204,7 @@ const styles = {
     animation: "radarSweep 10s linear infinite",
     zIndex: -1,
   },
+
 
   greenPulse: {
     position: "absolute",
@@ -192,6 +219,7 @@ const styles = {
     zIndex: -1,
   },
 
+
   card: {
     width: "95%",
     maxWidth: 520,
@@ -204,6 +232,7 @@ const styles = {
     boxShadow: "0 35px 80px rgba(0,0,0,0.25)",
   },
 
+
   hero: {
     position: "relative",
     height: 130,
@@ -212,6 +241,7 @@ const styles = {
     alignItems: "center",
     marginBottom: 15,
   },
+
 
   glow: {
     position: "absolute",
@@ -223,7 +253,9 @@ const styles = {
     animation: "float 3.5s infinite ease-in-out",
   },
 
+
   logo: { width: 85, zIndex: 2 },
+
 
   bot: {
     width: 120,
@@ -233,6 +265,7 @@ const styles = {
     animation: "float 3s infinite ease-in-out",
   },
 
+
   title: {
     fontSize: "2rem",
     fontWeight: 900,
@@ -241,11 +274,13 @@ const styles = {
     WebkitTextFillColor: "transparent",
   },
 
+
   subText: {
     fontSize: "1rem",
     color: "#475569",
     fontWeight: 700,
   },
+
 
   desc: {
     fontSize: ".9rem",
@@ -254,11 +289,13 @@ const styles = {
     margin: "10px auto 25px",
   },
 
+
   buttons: {
     display: "flex",
     gap: 14,
     justifyContent: "center",
   },
+
 
   retry: {
     padding: "11px 20px",
@@ -270,7 +307,10 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
+    textDecoration: "none",
+    color: "#0f172a",
   },
+
 
   home: {
     padding: "11px 26px",
@@ -284,6 +324,7 @@ const styles = {
     background: "linear-gradient(135deg,#4f46e5,#06b6d4)",
     boxShadow: "0 10px 28px rgba(79,70,229,0.45)",
   },
+
 
   footer: {
     marginTop: 22,

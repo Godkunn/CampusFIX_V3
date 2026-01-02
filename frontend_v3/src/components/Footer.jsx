@@ -138,8 +138,8 @@ export default function Footer() {
                         Product Designer
                       </div>
                       <div style={{ display: "flex", gap: "10px" }}>
-                        <a className="footer-icon" href="#"><Github size={14} /></a>
-                        <a className="footer-icon" href="#"><Linkedin size={14} /></a>
+                        <a className="footer-icon" href="https://github.com/Vishesh003-ai"><Github size={14} /></a>
+                        <a className="footer-icon" href="https://www.linkedin.com/in/vishesh-choudhary-855151326/"><Linkedin size={14} /></a>
                       </div>
                     </div>
                   </div>

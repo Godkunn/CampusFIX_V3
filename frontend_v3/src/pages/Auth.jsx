@@ -57,22 +57,29 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isLogin) {
-        const params = new URLSearchParams();
-        params.append('username', formData.email);
-        params.append('password', formData.password);
+        if (isLogin) {
+            const params = new URLSearchParams();
+            params.append('username', formData.email);
+            params.append('password', formData.password);
 
-        const res = await api.post('/login', params, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
+            const res = await api.post('/login', params, {
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+            });
 
-        const userRes = await api.get('/users/me', {
-          headers: { Authorization: `Bearer ${res.data.access_token}` }
-        });
-
-        login(userRes.data, res.data.access_token);
-        showToast('success', `Welcome back, ${userRes.data.full_name}!`);
-      } else {
+            // Try to get user from login response first (if backend updated)
+            if (res.data.user) {
+              login(res.data.user, res.data.access_token);
+              showToast('success', `Welcome back, ${res.data.user.full_name}!`);
+            } else {
+              // Fallback: fetch user separately (old method)
+              const userRes = await api.get('/users/me', {
+                headers: { Authorization: `Bearer ${res.data.access_token}` }
+              });
+              login(userRes.data, res.data.access_token);
+              showToast('success', `Welcome back, ${userRes.data.full_name}!`);
+            }
+        }
+      else {
         const payload = { ...formData, role: role === 'official' ? 'official' : 'student' };
         await api.post('/register', payload);
         showToast('success', "🎉 Registration Successful! Please login.");
@@ -88,25 +95,31 @@ export default function Auth() {
 
   // GOOGLE LOGIN - RESPECTS ROLE CHOICE
   const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const res = await api.post('/google-login', { 
-        token: credentialResponse.credential,
-        role: role
-      });
+  try {
+    const res = await api.post('/google-login', { 
+      token: credentialResponse.credential,
+      role: role
+    });
 
-      const { access_token } = res.data;
+    const { access_token, user } = res.data;
+    
+    // Use user from response if available
+    if (user) {
+      login(user, access_token);
+      showToast('success', `Welcome, ${user.full_name}!`);
+    } else {
+      // Fallback: fetch user separately
       const userRes = await api.get('/users/me', {
         headers: { Authorization: `Bearer ${access_token}` }
       });
-
       login(userRes.data, access_token);
       showToast('success', `Welcome, ${userRes.data.full_name}!`);
-
-    } catch (error) {
-      console.error(error);
-      showToast('error', "Google Login Failed. Try again.");
     }
-  };
+  } catch (error) {
+    console.error(error);
+    showToast('error', "Google Login Failed. Try again.");
+  }
+};
 
   // PREMIUM ANIMATIONS & SCROLLBAR HIDING
   const animationStyle = `
