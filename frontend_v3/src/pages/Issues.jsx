@@ -3,6 +3,7 @@ import api from '../api';
 import { useAuth } from '../App';
 import { Lock, X, Camera, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react'; 
 
+
 export default function Issues() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('track'); 
@@ -17,11 +18,13 @@ export default function Issues() {
   const [toast, setToast] = useState(null);
   const [previewImage, setPreviewImage] = useState(null);
 
+
   // Form State
   const [form, setForm] = useState({
     title: '', category: 'Power Failure', sub_location: '', specific_location: '', 
     description: '', priority: 'High', image_data: ''
   });
+
 
   // --- DATA LISTS ---
   const LOCATIONS = {
@@ -30,11 +33,13 @@ export default function Issues() {
     'Academic': ["Electrical Dept", "ECE Dept", "CSE Dept", "Civil/Mechanical Dept", "Library", "Admin Block"]
   };
 
+
   const CATEGORIES = {
     "High": ["Power Failure", "Short Circuit", "Water Leakage", "Fire Safety", "Medical Emergency"],
     "Medium": ["LAN/WiFi Issue", "Fan/Light Fault", "Door/Window Broken", "Sanitation/Cleaning"],
     "Low": ["Furniture Repair", "Lost Item", "General Maintenance"]
   };
+
 
   const ALL_CATEGORIES = [...CATEGORIES.High, ...CATEGORIES.Medium, ...CATEGORIES.Low];
   
@@ -47,6 +52,7 @@ export default function Issues() {
     ...ALL_CATEGORIES 
   ];
 
+
   // --- AUTO-FILL HOSTEL LOGIC ---
   useEffect(() => {
     if (activeTab === 'report') {
@@ -57,6 +63,7 @@ export default function Issues() {
       }
     }
   }, [areaType, activeTab, user]);
+
 
   const loadIssues = useCallback(async () => {
     try {
@@ -71,15 +78,18 @@ export default function Issues() {
     }
   }, [selectedTicket]);
 
+
   useEffect(() => {
     if (activeTab === 'track') loadIssues();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]); 
 
+
   const showToast = (type, msg) => {
     setToast({ type, msg });
     setTimeout(() => setToast(null), 3000);
   };
+
 
   const determinePriority = (cat) => {
     if (CATEGORIES.High.includes(cat)) return "High";
@@ -87,10 +97,12 @@ export default function Issues() {
     return "Low";
   };
 
+
   const handleCategoryChange = (e) => {
     const cat = e.target.value;
     setForm({ ...form, category: cat, priority: determinePriority(cat) });
   };
+
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -104,16 +116,19 @@ export default function Issues() {
     }
   };
 
+
   const removeImage = () => {
     setForm({ ...form, image_data: '' });
     setPreviewImage(null);
   }
+
 
   const handleReport = async (e) => {
     e.preventDefault();
     try {
       if(!form.sub_location) { showToast('error', "Please select a location"); return; }
       if(!form.image_data) { showToast('error', "Please upload an image evidence."); return; }
+
 
       const finalForm = { ...form, priority: determinePriority(form.category) };
       
@@ -127,6 +142,7 @@ export default function Issues() {
     } catch { showToast('error', "Failed to submit ticket."); }
   };
 
+
   const handleComment = async () => {
     if(!commentText.trim()) return;
     await api.post(`/issues/${selectedTicket.id}/comments`, { text: commentText });
@@ -134,11 +150,13 @@ export default function Issues() {
     loadIssues();
   };
 
+
   const handleRate = async () => {
     await api.patch(`/issues/${selectedTicket.id}/rate`, ratingData);
     loadIssues();
     showToast('success', "Feedback submitted!");
   };
+
 
   const updateStatus = async (id, status) => {
     try {
@@ -147,6 +165,7 @@ export default function Issues() {
       showToast('success', `Status updated to ${status}`);
     } catch { showToast('error', "Update failed"); }
   };
+
 
   const deleteTicket = async (id) => {
     if(confirm("Withdraw this ticket permanently?")) {
@@ -159,6 +178,7 @@ export default function Issues() {
     }
   };
 
+
   const getSLA = (issue) => {
     if (issue.status === 'Solved') return { t: "RESOLVED", c: "#10b981", icon: "✅" }; 
     const hours = (new Date() - new Date(issue.created_at)) / 36e5;
@@ -167,6 +187,7 @@ export default function Issues() {
     if(left < 0) return { t: "OVERDUE", c: "#ef4444", icon: "🔥" }; 
     return { t: `${Math.ceil(left)}h Left`, c: "#f59e0b", icon: "⏱️" }; 
   };
+
 
   const filteredIssues = issues.filter(i => {
     if (filter === 'All') return true;
@@ -178,8 +199,10 @@ export default function Issues() {
     if (filter === 'Mess' && LOCATIONS.Mess.includes(i.sub_location)) return true;
     if (filter === 'Academic' && LOCATIONS.Academic.includes(i.sub_location)) return true;
 
+
     return i.category === filter;
   });
+
 
   return (
     <div className="container fade-in" style={{ position: 'relative' }}>
@@ -198,12 +221,14 @@ export default function Issues() {
         </div>
       )}
 
+
       <div style={{ textAlign: 'center', marginBottom: '30px' }}>
         <div style={{ background: 'white', display: 'inline-flex', padding: '5px', borderRadius: '16px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
           <button onClick={() => setActiveTab('track')} className={`btn-ghost ${activeTab === 'track' ? 'btn-grad' : ''}`} style={{ border: 'none' }}>📋 Public Feed</button>
           {user.role === 'student' && <button onClick={() => setActiveTab('report')} className={`btn-ghost ${activeTab === 'report' ? 'btn-grad' : ''}`} style={{ border: 'none' }}>➕ Report New</button>}
         </div>
       </div>
+
 
       {activeTab === 'report' && (
         <div className="glass-panel" style={{ maxWidth: '600px', margin: '0 auto' }}>
@@ -213,6 +238,7 @@ export default function Issues() {
               Auto-Priority: {form.priority}
             </span>
           </div>
+
 
           <form onSubmit={handleReport}>
             <div className="grid-2" style={{ gap: '15px' }}>
@@ -245,6 +271,7 @@ export default function Issues() {
               </div>
             </div>
 
+
             <div className="grid-2" style={{ gap: '15px' }}>
               <div>
                 <label className="label-text">Issue Category</label>
@@ -258,8 +285,10 @@ export default function Issues() {
               </div>
             </div>
 
+
             <label className="label-text">Description</label>
             <textarea className="glass-input" rows="3" placeholder="Describe the problem clearly..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+
 
             <div style={{ marginBottom: '20px' }}>
               <label className="label-text">Evidence (Mandatory)</label>
@@ -288,10 +317,12 @@ export default function Issues() {
               </div>
             </div>
 
+
             <button className="btn-grad" style={{ width: '100%' }}>🚀 Submit Complaint</button>
           </form>
         </div>
       )}
+
 
       {activeTab === 'track' && (
         <>
@@ -300,6 +331,7 @@ export default function Issues() {
               <button key={f} onClick={() => setFilter(f)} className="btn-ghost" style={{ marginRight: '10px', background: filter === f ? '#e0e7ff' : 'rgba(255,255,255,0.7)', border: filter === f ? '1px solid #4f46e5' : '1px solid #cbd5e1', color: filter === f ? '#4f46e5' : '#64748b', fontWeight: filter === f ? '700' : '500', borderRadius: '20px', padding: '6px 16px', fontSize: '0.85rem' }}>{f}</button>
             ))}
           </div>
+
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '20px' }}>
             {filteredIssues.map(issue => {
@@ -332,6 +364,7 @@ export default function Issues() {
                             </span>
                         )}
 
+
                         {issue.rating ? (
                         <span style={{ color: '#f59e0b', fontWeight: '700' }}>⭐ {issue.rating}</span>
                         ) : (
@@ -347,6 +380,7 @@ export default function Issues() {
           </div>
         </>
       )}
+
 
       {selectedTicket && (
         <div className="modal-overlay" onClick={() => setSelectedTicket(null)}>
@@ -393,11 +427,13 @@ export default function Issues() {
               {selectedTicket.status !== 'Solved' && (<div style={{ display: 'flex', marginTop: '10px', gap: '5px' }}><input className="glass-input" placeholder="Type a comment..." value={commentText} onChange={e => setCommentText(e.target.value)} style={{ marginBottom: 0 }} /><button onClick={handleComment} className="btn-grad" style={{ padding: '0 20px' }}>Send</button></div>)}
             </div>
 
+
             {selectedTicket.status === 'Solved' && (
               <div style={{ marginTop: '20px', padding: '15px', background: '#ecfdf5', borderRadius: '12px', textAlign: 'center' }}>
                 {selectedTicket.rating ? (<div><div style={{ fontSize: '1.5rem' }}>{"⭐".repeat(selectedTicket.rating)}</div><div style={{ fontSize: '0.9rem', fontStyle: 'italic', color: '#065f46' }}>"{selectedTicket.review}"</div></div>) : user.role === 'student' && selectedTicket.owner_name === user.full_name ? (<><h4 style={{ margin: 0, color: '#065f46' }}>Rate Service</h4><select className="glass-input" style={{ width: 'auto', display: 'inline-block', margin: '10px' }} onChange={e => setRatingData({...ratingData, rating: parseInt(e.target.value)})}>{[5,4,3,2,1].map(r => <option key={r} value={r}>{r} Star</option>)}</select><button onClick={handleRate} className="btn-grad" style={{ background: '#059669' }}>Submit</button></>) : <div style={{ color: '#059669', fontWeight: '600' }}>Issue Resolved ✅</div>}
               </div>
             )}
+
 
             <div style={{ marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '10px', flexWrap: 'wrap' }}>
               
@@ -417,6 +453,7 @@ export default function Issues() {
                   </button>
                 </>
               )}
+
 
               {/* STUDENT ACTIONS */}
               {user.role === 'student' && selectedTicket.owner_name === user.full_name && (
@@ -444,7 +481,82 @@ export default function Issues() {
         </div>
       )}
 
-      <style>{`.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; } .modal-content { width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto; padding: 25px; animation: slideUp 0.3s; } .label-text { display: block; margin-bottom: 5px; font-weight: 600; color: #64748b; font-size: 0.8rem; text-transform: uppercase; } .btn-close { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; opacity: 0.5; } @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } } @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+
+      <style>{`.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 1000; display: flex; align-items: center; justify-content: center; } .modal-content { width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto; padding: 25px; animation: slideUp 0.3s; } .label-text { display: block; margin-bottom: 5px; font-weight: 600; color: #64748b; font-size: 0.8rem; text-transform: uppercase; } .btn-close { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; opacity: 0.5; } @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } } @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* Compact & responsive adjustments for phones, micro and mini screens */
+/* Base compact styles */
+.container { font-size: 14px; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+.glass-panel { padding: 14px; border-radius: 12px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.glass-input { font-size: 0.88rem; padding: 8px 10px; border-radius: 8px; width: 100%; box-sizing: border-box; }
+.btn-grad, .btn-ghost { font-size: 0.9rem; padding: 8px 12px; border-radius: 12px; cursor: pointer; }
+.btn-ghost { background: rgba(255,255,255,0.7); border: 1px solid #cbd5e1; }
+.btn-grad { font-weight: 700; }
+.badge { font-size: 0.75rem; padding: 4px 8px; border-radius: 12px; display: inline-block; }
+.hover-card { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.hover-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(2,6,23,0.08); }
+.flex-between { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+h2 { font-size: 1.05rem; line-height: 1.1; }
+h3 { font-size: 1rem; line-height: 1.15; margin: 6px 0; }
+p { font-size: 0.95rem; line-height: 1.35; }
+
+/* Small phones - compact */
+@media (max-width: 420px) {
+  .container { font-size: 13px; }
+  .modal-content { padding: 16px; max-width: 420px; }
+  .glass-panel { padding: 12px; border-radius: 10px; }
+  .grid-2 { gap: 8px; grid-template-columns: repeat(2, 1fr); }
+  .glass-input { font-size: 0.82rem; padding: 7px 8px; border-radius: 8px; }
+  .btn-grad, .btn-ghost { font-size: 0.78rem; padding: 6px 10px; border-radius: 10px; }
+  h2 { font-size: 1rem; }
+  h3 { font-size: 0.95rem; }
+  .modal-content img { max-height: 160px; }
+  .badge { font-size: 0.68rem; padding: 3px 7px; }
+  .label-text { font-size: 0.72rem; }
+  .hover-card:hover { transform: translateY(-2px); }
+  [style*="height: '120px'"] { height: 100px !important; }
+}
+
+/* Very small phones (micro) */
+@media (max-width: 360px) {
+  .container { font-size: 12px; }
+  .modal-content { padding: 12px; max-width: 360px; }
+  .glass-panel { padding: 10px; border-radius: 10px; }
+  .glass-input { font-size: 0.76rem; padding: 6px 7px; border-radius: 7px; }
+  .btn-grad, .btn-ghost { font-size: 0.72rem; padding: 5px 8px; border-radius: 8px; }
+  h2 { font-size: 0.95rem; }
+  h3 { font-size: 0.9rem; }
+  .modal-content img { max-height: 140px; }
+  .badge { font-size: 0.66rem; padding: 3px 6px; }
+  .label-text { font-size: 0.68rem; }
+  input.glass-input, textarea.glass-input, select.glass-input { padding: 6px 8px !important; }
+  [style*="height: '120px'"] { height: 90px !important; }
+}
+
+/* Mini phones (old smallest screens) */
+@media (max-width: 320px) {
+  .container { font-size: 11px; }
+  .modal-content { padding: 10px; max-width: 320px; }
+  .glass-panel { padding: 8px; border-radius: 8px; }
+  .grid-2 { grid-template-columns: 1fr; gap: 8px; }
+  .glass-input { font-size: 0.68rem; padding: 5px 6px; border-radius: 6px; }
+  .btn-grad, .btn-ghost { font-size: 0.66rem; padding: 4px 6px; border-radius: 6px; }
+  h2 { font-size: 0.9rem; }
+  h3 { font-size: 0.82rem; }
+  .modal-content img { max-height: 120px; }
+  .badge { font-size: 0.62rem; padding: 2px 5px; }
+  .label-text { font-size: 0.64rem; }
+  .btn-close { top: 8px; right: 8px; font-size: 1.2rem; }
+  .flex-between { gap: 6px; }
+  [style*="height: '120px'"] { height: 80px !important; }
+}
+
+/* Accessibility: keep tap targets usable while still small */
+.btn-grad, .btn-ghost, .glass-input, .badge { min-height: 34px; }
+
+/* Keep keyframe animations intact */
+`}</style>
     </div>
   );
 }

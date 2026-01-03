@@ -51,49 +51,54 @@ if not SECRET_KEY:
 
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
 
-# --- DATABASE CONNECTION LOGIC ---
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./campusfix_v3.db")
+# ==========================================
+# FINAL DATABASE CONNECTION - PRODUCTION READY
+# ==========================================
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# --- DATABASE CONNECTION LOGIC ---
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./campusfix_v3.db")
+if not DATABASE_URL:
+    raise RuntimeError("❌ DATABASE_URL is missing from environment variables!")
 
-# Fix for Render/Supabase URLs starting with "postgres://"
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+# Fix postgres:// to postgresql://
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Check which DB we are connecting to
-if "sqlite" in DATABASE_URL:
-    print("💽 Connecting to LOCAL SQLite Database...")
-    engine = create_engine(
-        DATABASE_URL, 
-        connect_args={"check_same_thread": False}
-    )
-else:
-    print("☁️  Connecting to REMOTE PostgreSQL (Supabase)...")
-    
-    # 1. FORCE PORT 6543 (Transaction Mode)
-    # This is the "Magic Bullet" that lets 1000 students use the app.
-    if ":5432" in DATABASE_URL:
-        print("⚡ Auto-switching to Transaction Mode (Port 6543) for scale...")
-        DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
+# ✅ FORCE SESSION POOLER (Port 6543)
+# Your Supabase has 46 connections available in Session Mode
+if ":5432" in DATABASE_URL:
+    print("⚡ Switching to Session Pooler (Port 6543)...")
+    DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
 
-    # 2. STRICT SAFETY LIMITS
-    # We use pool_size=5 and max_overflow=0. 
-    # This guarantees you NEVER exceed Supabase limits, even if traffic spikes.
-    engine = create_engine(
-        DATABASE_URL,
-        pool_size=5,           # 5 steady connections (Safe & Fast)
-        max_overflow=0,        # Zero extra connections allowed (Prevents Crashes)
-        pool_timeout=30,       # Wait 30s before giving up
-        pool_recycle=300,      # Refresh every 5 mins to prevent "SSL EOF" errors
-        pool_pre_ping=True,    # Check connection health before using
-        connect_args={
-            "keepalives": 1,
-            "keepalives_idle": 30,
-            "keepalives_interval": 10,
-            "keepalives_count": 5
-        }
-    )
+# Add SSL requirement
+if "?" not in DATABASE_URL:
+    DATABASE_URL += "?sslmode=require"
+elif "sslmode" not in DATABASE_URL:
+    DATABASE_URL += "&sslmode=require"
+
+print("☁️ Connecting to Supabase PostgreSQL...")
+
+# ✅ CREATE ENGINE WITH OPTIMAL SETTINGS
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=5,              # Conservative for Render free tier
+    max_overflow=0,           # No bursts (prevents crashes)
+    pool_timeout=30,          
+    pool_recycle=300,         # Recycle every 5 mins
+    pool_pre_ping=True,       # Check health before use
+    connect_args={
+        "sslmode": "require",
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    },
+    # ✅ CRITICAL FIX for Transaction Mode
+    execution_options={
+        "isolation_level": "AUTOCOMMIT"
+    }
+)
+
+print("✅ Connected to Supabase (Session Mode, Port 6543)")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -192,7 +197,7 @@ def append_rating_to_sheet(rating_data, user_data):
 
 email_conf = ConnectionConfig(
     MAIL_USERNAME = "godayush10@gmail.com", 
-    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "bmdo ikef wjgl jwxz"), 
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"),
     MAIL_FROM = "admin@campusfix.com",
     MAIL_PORT = 587,
     MAIL_SERVER = "smtp.gmail.com",
@@ -299,6 +304,7 @@ class Issue(Base):
 # Create Tables automatically if they don't exist
 Base.metadata.create_all(bind=engine)
 
+from pydantic import ConfigDict
 # ==========================================
 # 4. PYDANTIC SCHEMAS
 # ==========================================
@@ -354,7 +360,7 @@ class CommentResponse(BaseModel):
     text: str
     created_at: datetime
     user_name: str
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class RatingCreate(BaseModel):
     rating: int
@@ -378,7 +384,7 @@ class IssueResponse(IssueCreate):
     review: Optional[str] = None
     comments: List[CommentResponse] = []
     owner_credit_score: Optional[float] = 0.0
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 class DashboardStats(BaseModel):
     total_issues: int
@@ -406,13 +412,23 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 app = FastAPI()
 
-@app.on_event("startup")
-def startup_event():
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     init_google_sheets()
+    yield
+    # Shutdown (if needed)
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+    "https://campusfix-v3.onrender.com",
+    "http://localhost:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
