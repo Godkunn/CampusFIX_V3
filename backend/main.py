@@ -63,28 +63,11 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-<<<<<<< HEAD
 # ✅ FORCE SESSION POOLER (Port 6543)
 # Your Supabase has 46 connections available in Session Mode
 if ":5432" in DATABASE_URL:
     print("⚡ Switching to Session Pooler (Port 6543)...")
     DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
-=======
-# Check which DB we are connecting to
-if "sqlite" in DATABASE_URL:
-    print("💽 Connecting to LOCAL SQLite Database...")
-    engine = create_engine(
-        DATABASE_URL, 
-        connect_args={"check_same_thread": False}
-    )
-else:
-    print("☁️  Connecting to REMOTE PostgreSQL (Supabase)...")
-    
-    # 1. FORCE PORT 5432 (Session Mode) for Stability
-    if ":6543" in DATABASE_URL:
-        print("🔄 Switching to Session Mode (Port 5432) for stability...")
-        DATABASE_URL = DATABASE_URL.replace(":6543", ":5432")
->>>>>>> 221a4b059d8d6842312266996eb5149baf297b97
 
 # Add SSL requirement
 if "?" not in DATABASE_URL:
