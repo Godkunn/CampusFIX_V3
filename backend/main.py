@@ -283,13 +283,16 @@ class MessRating(Base):
     review = Column(Text, nullable=True)
     suggestions = Column(Text, nullable=True)
     image_data = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    from sqlalchemy import func
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
+
 
 class Comment(Base):
     __tablename__ = "comments"
     id = Column(Integer, primary_key=True, index=True)
     text = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    from sqlalchemy import func
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
     issue_id = Column(Integer, ForeignKey("issues.id"))
     user_id = Column(Integer, ForeignKey("users.id"))
     user = relationship("User")
@@ -305,7 +308,8 @@ class Issue(Base):
     priority = Column(String)
     status = Column(String, default=IssueStatus.PENDING)
     image_data = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    from sqlalchemy import func
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"))
     rating = Column(Integer, nullable=True)
     review = Column(Text, nullable=True)

@@ -215,7 +215,7 @@ export default function Dashboard() {
       "2weeks": "2weeks",
       "month": "month",
       // map UI's 3months to backend's month or semester
-      "3months": "3month",
+      "3months": "3months",
       "semester": "semester",
       "all": "all"
     };
