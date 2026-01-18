@@ -1,0 +1,302 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* -------- ROOT VARIABLES -------- */
+:root {
+  --primary: #4f46e5;   
+  --secondary: #06b6d4; 
+  --accent: #f43f5e;    
+
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --input-bg: rgba(255, 255, 255, 0.6);
+}
+
+/* ---------- RESET ---------- */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden; /* Prevents horizontal scroll glitches on mobile */
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- BACKGROUND ---------- */
+body {
+  /* Using your local public file */
+  background-image: url('/campus-bg.avif');
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100vh;
+  background-size: cover;
+  color: var(--text-main);
+  background-color: #f8fafc; /* Fallback color */
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.1)
+  );
+  backdrop-filter: blur(5px);
+  z-index: -1;
+}
+
+/* ---------- GLASS COMPONENTS ---------- */
+.glass-panel {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  box-shadow: var(--glass-shadow);
+  padding: 2rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-panel:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(31, 38, 135, 0.2);
+}
+
+.auth-card {
+    /* Specific class for Login Card centering */
+    width: 400px;
+    max-width: 90%;
+}
+
+/* ---------- INPUTS ---------- */
+.glass-input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text-main);
+  font-size: 1rem;
+  outline: none;
+  transition: 0.3s;
+  margin-bottom: 1rem;
+}
+
+.glass-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+  background: #ffffff;
+}
+
+/* ---------- BUTTONS ---------- */
+.btn-grad {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.3s;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+}
+
+.btn-grad:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(79, 70, 229, 0.4);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #e2e8f0;
+  color: var(--text-main);
+  padding: 10px 20px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-ghost:hover {
+  background: #ffffff;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.google-btn {
+  /* Google Auth Button */
+  transition: transform 0.2s ease;
+}
+.google-btn:active {
+  transform: scale(0.98);
+}
+
+/* ---------- LAYOUT UTILITIES ---------- */
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+
+/* Stats Grid Default (Desktop) */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+}
+
+/* ---------- BADGES ---------- */
+.badge { padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; display: inline-block; }
+.badge-pending { background:#fffbeb; color:#b45309; border:1px solid #fcd34d; }
+.badge-resolved { background:#f0fdf4; color:#15803d; border:1px solid #86efac; }
+.badge-defected { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+.badge-duplicate { background:#eef2ff; color:#4338ca; border:1px solid #a5b4fc; }
+.badge-unnecessary { background:#f9fafb; color:#374151; border:1px solid #d1d5db; }
+
+/* =========================================================
+   📱 RESPONSIVE NAVIGATION & COMPONENT UPGRADES
+=========================================================*/
+
+/* DEFAULT — Desktop */
+.mobile-menu-btn { display: none !important; }
+.mobile-menu-dropdown { display: none; }
+
+/* 📱 PHONE SPECIFIC (Max width 640px) */
+@media (max-width: 640px) {
+  
+  /* 1. DASHBOARD COMPRESSION */
+  .dashboard-banner {
+    padding: 1.5rem 1rem !important;
+  }
+  .dashboard-welcome-text {
+    font-size: 1.6rem !important;
+    line-height: 1.2 !important;
+  }
+  .dashboard-date {
+    font-size: 0.75rem !important;
+  }
+  
+  /* 2. STATS GRID - 4 IN 1 ROW (Compact) */
+  .stats-grid {
+    /* Changing to 2x2 for readability on small phones, 
+       but keeping them tight to save space */
+    grid-template-columns: repeat(2, 1fr) !important; 
+    gap: 10px !important;
+  }
+  
+  .stat-card {
+    padding: 15px !important;
+  }
+  .stat-number {
+    font-size: 1.5rem !important;
+  }
+
+  /* 3. CHATBOT SIZING */
+  .chatbot-widget {
+    bottom: 20px !important;
+    right: 10px !important;
+    width: 300px !important;
+  }
+  .chatbot-trigger-btn {
+    width: 50px !important;
+    height: 50px !important;
+  }
+  
+  /* 4. AUTH CARD */
+  .auth-card {
+    width: 95% !important;
+    padding: 25px !important;
+    margin-top: -50px; /* Visual centering adjustment */
+  }
+
+  /* 5. MESS RATING STARS */
+  .star-container {
+    gap: 5px !important;
+  }
+  .star-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+}
+
+/* 📱 TABLET & PHONE NAV (Max width 1024px) */
+@media (max-width: 1024px) {
+
+  nav {
+    padding: 1rem 1.5rem !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .mobile-menu-btn {
+    display: block !important;
+  }
+
+  .desktop-menu {
+    display: none !important;
+  }
+
+  .mobile-menu-dropdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    animation: slideDown 0.3s ease-out;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  h1 { font-size: 1.7rem !important; }
+}
+
+/* BIG TV UI */
+@media (min-width:1600px){
+  .app-container { max-width:1600px !important; }
+  body { font-size:18px; }
+}
+
+/* Animation */
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
