@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Phone, ShieldAlert, User, Briefcase, Stethoscope, Wifi, Wrench, GraduationCap, Copy, X, Check, MessageCircle, BookOpen, Landmark, Truck } from 'lucide-react';
 
 export default function Contacts() {

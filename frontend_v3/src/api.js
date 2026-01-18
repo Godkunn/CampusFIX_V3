@@ -103,6 +103,13 @@ function createThumbnailFromDataUrl(dataUrl, maxWidth = 90, quality = 0.35) {
 }
 
 /**
+ * Make a very small thumbnail from a dataURL (base64 image).
+ * Returns a dataURL (jpeg) or null on failure.
+ *
+ * Note: This runs in the browser using canvas and is asynchronous.
+ */
+
+/**
  * Make a "lite" copy of an issue item suitable for localStorage.
  * Keeps key small fields, sets image_data to null, optionally includes `thumb` if created.
  */
@@ -141,10 +148,26 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // compute stable full URL early
+    let fullUrl;
+    try {
+      fullUrl = getFullUrl(config);
+    } catch (e) {
+      console.warn('⚠️ Background refresh failed', e);
+      fullUrl = null;
+    }
+
+    // 🔒 Bypass all caching/refresh/failover logic for file downloads (binary streams)
+    // This is important for endpoints like /reports/download which return blobs
+    if (fullUrl && fullUrl.includes('/reports/download')) {
+      // don't touch config.adapter, timeouts, caching, etc. Let the request flow directly.
+      console.log('🔒 Bypassing cache/refresh for file download:', fullUrl);
+      return config;
+    }
+
     // Only apply caching for GET requests
     if ((config.method || '').toLowerCase() === 'get') {
-      const fullUrl = getFullUrl(config);
-      const cached = cache.get(fullUrl);
+      const cached = fullUrl ? cache.get(fullUrl) : null;
 
       // 1) If memory cache is fresh -> return it synchronously (no network)
       if (cached && Date.now() - cached.timestamp < CACHE_DURATION && !config.headers['X-Background-Refresh']) {
@@ -162,7 +185,7 @@ api.interceptors.request.use(
       // 2) If memory miss, check localStorage and return it instantly (also trigger background refresh)
       if (!config.headers['X-Background-Refresh']) {
         try {
-          const lsRaw = localStorage.getItem(LS_PREFIX + fullUrl);
+          const lsRaw = fullUrl ? localStorage.getItem(LS_PREFIX + fullUrl) : null;
           if (lsRaw) {
             const lsData = JSON.parse(lsRaw);
             console.log('🕓 Using localStorage cached data for:', fullUrl);
@@ -222,6 +245,12 @@ api.interceptors.response.use(
       if (response.config && (response.config.method || '').toLowerCase() === 'get' && response.status === 200) {
         const fullUrl = getFullUrl(response.config);
 
+        // 🚫 Do not cache file download responses (binary blobs)
+        if (fullUrl.includes('/reports/download')) {
+          // Return as-is without touching cache/localStorage
+          return response;
+        }
+
         // memory cache -> keep full response in memory (fast while tab open)
         cache.set(fullUrl, {
           data: response.data,
@@ -244,6 +273,7 @@ api.interceptors.response.use(
                     thumb = await createThumbnailFromDataUrl(issue.image_data);
                   }
                 } catch (err) {
+                  console.warn('⚠️ Background refresh failed', err);
                   // ignore thumb errors
                   thumb = null;
                 }

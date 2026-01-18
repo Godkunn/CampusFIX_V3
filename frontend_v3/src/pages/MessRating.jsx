@@ -1,7 +1,7 @@
 // frontend_v3/src/pages/MessRating.jsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import api from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../auth/AuthContext';
 import { Star, TrendingUp, Camera, User, Lock, Clock, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function MessRating() {

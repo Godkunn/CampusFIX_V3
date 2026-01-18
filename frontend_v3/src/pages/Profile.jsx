@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../auth/AuthContext';
 import { Lock, Edit3, ShieldCheck, AlertTriangle, Camera, Save, X, Check, ZoomIn, ZoomOut } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 

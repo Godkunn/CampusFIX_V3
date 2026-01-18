@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../auth/AuthContext';
 import { Lock, X, Camera, RefreshCw, AlertTriangle, ShieldCheck } from 'lucide-react'; 
 
 

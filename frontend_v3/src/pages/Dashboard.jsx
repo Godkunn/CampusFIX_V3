@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../auth/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { requestPermissionAndGetToken } from '../firebase';
 import {
@@ -77,6 +77,7 @@ export default function Dashboard() {
           setStatsLoading(false);
         }
       } catch (err) {
+        console.warn('⚠️ Background refresh failed', err);
         if (statsRetryAttempt < MAX_RETRIES && isMounted) {
           statsRetryAttempt++;
           setTimeout(() => loadStats(), 1000 * statsRetryAttempt);
@@ -132,7 +133,7 @@ export default function Dashboard() {
       setRecentActivity([]); // ✅ KEEPS THE REFRESH SMOOTH
       setDelayedCount(0);
     };
-  }, [user.role, user.id, user.email]);
+  }, [user?.role, user?.id, user?.email]);
 
   // =============================================
   // 🎨 HEATMAP AUTO-SLIDER
@@ -142,11 +143,30 @@ export default function Dashboard() {
       setHeatmapIndex((prev) => (prev + 1) % HEATMAP_IMAGES.length);
     }, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [HEATMAP_IMAGES.length]);
+
+  // reset reportConfig when modal opens / type changes
+  useEffect(() => {
+    if (!reportModal.open) return;
+    if (reportModal.type === 'issues') {
+      setReportConfig({ range: 'today', format: 'pdf' });
+    } else if (reportModal.type === 'mess') {
+      setReportConfig({ range: 'week', format: 'pdf' });
+    } else {
+      setReportConfig({ range: 'week', format: 'pdf' });
+    }
+  }, [reportModal.open, reportModal.type]);
 
   // =============================================
   // 🎯 HELPER FUNCTIONS
   // =============================================
+  const closeReportModal = () => {
+    setReportModal({ open: false, type: '' });
+    setReportConfig({ range: 'week', format: 'pdf' });
+    setGenerationProgress(0)
+    setIsGenerating(false);
+  };
+
   const showToast = (type, message) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
@@ -179,40 +199,63 @@ export default function Dashboard() {
   };
 
   const downloadRealFile = async () => {
-    try {
-      const response = await api.get('/reports/download', {
-        params: { 
-          type: reportModal.type, 
-          range: reportConfig.range, 
-          format: reportConfig.format 
-        },
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 
-        `CampusFix_${reportModal.type}_Report.${reportConfig.format === 'excel' ? 'csv' : 'pdf'}`
-      );
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      
-      setLoadingText("Download Complete!");
-      showToast('success', 'Report Downloaded Successfully!');
-      
-      setTimeout(() => {
-        setIsGenerating(false);
-        setReportModal({ open: false, type: '' });
-        setGenerationProgress(0);
-      }, 1000);
-    } catch (error) {
-      console.error("Report download failed:", error);
-      setIsGenerating(false);
-      showToast('error', "Download Failed.");
-    }
-  };
+  try {
+    console.log("📥 Downloading...", {
+      type: reportModal.type,
+      range: reportConfig.range,
+      format: reportConfig.format
+    });
+
+    // map UI values to backend-meaningful range keys (keeps your UI values intact)
+    const rangeMap = {
+      "today": "today",
+      "yesterday": "yesterday",
+      "3days": "3days",
+      "week": "week",
+      "2weeks": "2weeks",
+      "month": "month",
+      // map UI's 3months to backend's month or semester
+      "3months": "3month",
+      "semester": "semester",
+      "all": "all"
+    };
+
+    const finalRange = rangeMap[reportConfig.range] || reportConfig.range;
+
+    const resp = await api.get('/reports/download', {
+      params: {
+        type: reportModal.type.toLowerCase(),
+        range: finalRange,
+        format: reportConfig.format
+      },
+      responseType: 'blob'
+    });
+
+    // ensure valid file blob
+    const blob = new Blob([resp.data]);
+    const ext = reportConfig.format === 'excel' ? 'csv' : 'pdf';
+    // use finalRange for filename so it matches what was sent
+    const name = `CampusFix_${reportModal.type}_${finalRange}.${ext}`;
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+
+    showToast('success', 'Report Downloaded Successfully!');
+    setIsGenerating(false);
+    closeReportModal();
+
+  } catch (error) {
+    console.error("Report download failed:", error);
+    showToast('error', 'Download failed. Check console.');
+    setIsGenerating(false);
+  }
+};
 
   const resolutionRate = stats && stats.total_issues > 0 
     ? Math.round((stats.resolved / stats.total_issues) * 100) 
@@ -340,7 +383,7 @@ export default function Dashboard() {
           fontWeight: '800', 
           marginBottom: '0.5rem' 
         }}>
-          Welcome, {user.full_name.split(' ')[0]}! 👋
+          Welcome, {(user?.full_name || 'User').split(' ')[0]}! 👋
         </h1>
         <p className="hero-desc" style={{ 
           fontSize: '1.1rem', 
@@ -610,7 +653,10 @@ export default function Dashboard() {
                     gap: '10px' 
                   }}>
                     <button 
-                      onClick={() => setReportModal({ open: true, type: 'issues' })} 
+                      onClick={() => {
+                      setReportModal({ open: true, type: 'issues' });
+                      setReportConfig({ range: 'today', format: 'pdf' });
+                    }}
                       className="btn-ghost report-btn" 
                       style={{ 
                         display: 'flex', 
@@ -624,7 +670,10 @@ export default function Dashboard() {
                       <FileText size={16} /> <span>Issues</span>
                     </button>
                     <button 
-                      onClick={() => setReportModal({ open: true, type: 'mess' })} 
+                      onClick={() => {
+                      setReportModal({ open: true, type: 'mess' });
+                      setReportConfig({ range: 'week', format: 'pdf' });
+                    }}
                       className="btn-ghost report-btn" 
                       style={{ 
                         display: 'flex', 
@@ -1070,7 +1119,7 @@ export default function Dashboard() {
       {reportModal.open && (
         <div 
           className="modal-overlay" 
-          onClick={() => !isGenerating && setReportModal({ ...reportModal, open: false })}
+          onClick={() => !isGenerating && closeReportModal()} 
         >
           <div 
             className="glass-panel modal-content" 
@@ -1154,22 +1203,21 @@ export default function Dashboard() {
                         <option value="week">This Week</option>
                         <option value="2weeks">Last 2 Weeks</option>
                         <option value="month">1 Month</option>
+                        <option value="3months">Last 3 Months</option>
                         <option value="semester">Full Semester</option>
                       </>
                     )}
-                  </select>
-                </div>
+                    </select>
 
-                <div style={{ marginBottom: '25px' }}>
-                  <label style={{ 
-                    display: 'block', 
-                    fontSize: '0.85rem', 
-                    fontWeight: '600', 
-                    color: '#475569', 
-                    marginBottom: '8px' 
-                  }}>
-                    Format
-                  </label>
+                    <label style={{ 
+                      display: 'block', 
+                      fontSize: '0.85rem', 
+                      fontWeight: '600', 
+                      color: '#475569', 
+                      marginBottom: '8px' 
+                    }}>
+                      Format
+                    </label>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button 
                       onClick={() => setReportConfig({ ...reportConfig, format: 'pdf' })} 
@@ -1216,7 +1264,7 @@ export default function Dashboard() {
 
             {!isGenerating && (
               <button 
-                onClick={() => setReportModal({ ...reportModal, open: false })} 
+                onClick={closeReportModal}
                 className="btn-close"
               >
                 ×

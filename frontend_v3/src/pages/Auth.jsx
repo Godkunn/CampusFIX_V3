@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import api from '../api';
-import { useAuth } from '../App';
+import { useAuth } from '../auth/AuthContext';
 
 // Client ID
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;

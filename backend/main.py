@@ -10,6 +10,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 from typing import Optional, List
 from enum import Enum
 from dotenv import load_dotenv
+from sqlalchemy import text
 
 # --- GOOGLE SHEETS IMPORTS ---
 import gspread
@@ -98,6 +99,11 @@ engine = create_engine(
         "isolation_level": "AUTOCOMMIT"
     }
 )
+
+# Ensure default schema is public (Neon fix)
+with engine.connect() as conn:
+    conn.execute(text("SET search_path TO public"))
+
 
 print("✅ Connected to Supabase (Session Mode, Port 6543)")
 
@@ -800,24 +806,24 @@ def get_mess_analytics(
 ):
     # 1. TRIGGER SYNC?
     # Sync if explicitly requested OR if we are looking at 'all' time (to ensure freshness)
-    should_sync = (force_sync.lower() == 'true')
+    # should_sync = (force_sync.lower() == 'true')
 
-    # Also auto-sync when admin is viewing all-time analytics
-    if not should_sync and scope == "all":
-        should_sync = True
+    # # Also auto-sync when admin is viewing all-time analytics
+    # if not should_sync and scope == "all":
+    #     should_sync = True
 
-    # Still sync if DB is empty
-    if not should_sync and db.query(MessRating).count() == 0:
-        should_sync = True
+    # # Still sync if DB is empty
+    # if not should_sync and db.query(MessRating).count() == 0:
+    #     should_sync = True
 
-    if should_sync:
-        try:
-            print("🔄 Starting Sheet Sync...")
-            sheet_rows = read_mess_from_sheet(mess)
-            if sheet_rows:
-                sync_sheet_rows_to_db(db, sheet_rows)
-        except Exception as e:
-            print(f"⚠️ Sync skipped (Sheet API error): {e}")
+    # if should_sync:
+    #     try:
+    #         print("🔄 Starting Sheet Sync...")
+    #         sheet_rows = read_mess_from_sheet(mess)
+    #         if sheet_rows:
+    #             sync_sheet_rows_to_db(db, sheet_rows)
+    #     except Exception as e:
+    #         print(f"⚠️ Sync skipped (Sheet API error): {e}")
 
     # 2. QUERY DB (The Single Source of Truth)
     if scope == "all":
@@ -855,12 +861,12 @@ def get_mess_analytics(
     if overall >= 4.0:
         sentiment = "Positive 🌟"
         action_item = "Reward vendor for consistency."
+    elif overall < 2.0:
+        sentiment = "Severe 🛑"
+        action_item = "Consider terminating contract."
     elif overall < 3.0:
         sentiment = "Critical 🚨"
         action_item = "Immediate hygiene inspection required."
-    elif overall < 2.0:
-         sentiment = "Severe 🛑"
-         action_item = "Consider terminating contract."
 
     # 5. Format Reviews (Newest First)
     reviews_list = []
@@ -937,8 +943,15 @@ def list_issues(response: Response, user: User = Depends(get_current_user), db: 
                 Issue.owner_id == user.id
             )
         )
-
-    issues = query.all()
+    try:
+        db.execute(text("SELECT 1"))    # wake / revalidate dead SSL connection
+        issues = query.all()
+    except OperationalError:
+        db.rollback()
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Database temporarily unavailable. Please retry."}
+        )
 
     results = []
     for i in issues:
@@ -1058,15 +1071,116 @@ def stats(response: Response, user: User = Depends(get_current_user), db: Sessio
     my_issues = db.query(Issue).filter(Issue.owner_id == user.id).count()
     return {"total_issues": total, "pending": pending, "resolved": resolved, "my_issues": my_issues}
 
-# --- ADDITIONAL IMPORTS ---
-from reportlab.graphics.shapes import Drawing, Rect, String, Line, Circle
+import io
+import csv
+import os
+from datetime import datetime, timedelta
+import pytz
+
+# FastAPI & Database
+from fastapi import Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse, JSONResponse
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
+
+# ReportLab (PDF Generation)
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.platypus.flowables import HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
-from reportlab.lib.units import inch
-from reportlab.platypus import Image as RLImage  # For logo
-from reportlab.platypus.flowables import HRFlowable
 
-# --- ENHANCED REPORT GENERATION (FIXED VERSION) ---
+# Define Timezone (Prevents crash if IST is missing)
+IST = pytz.timezone('Asia/Kolkata')
+
+# ==========================================
+# 8. REPORT GENERATION (TEST & PRODUCTION)
+# ==========================================
+
+# --- SIMPLE TEST ENDPOINTS (Use these to verify it works first) ---
+@app.get("/test/report/pdf")
+def test_pdf_report():
+    """Test endpoint for PDF generation"""
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        elements = []
+        
+        styles = getSampleStyleSheet()
+        elements.append(Paragraph("Test PDF Report", styles['Heading1']))
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph(f"Generated at: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph("✅ PDF Generation is Working!", styles['Normal']))
+        
+        # Simple table
+        data = [
+            ["Item", "Quantity", "Price"],
+            ["Apple", "5", "$10"],
+            ["Banana", "3", "$6"],
+            ["Orange", "7", "$14"]
+        ]
+        
+        table = Table(data)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ]))
+        
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=test_report.pdf"}
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/test/report/csv")
+def test_csv_report():
+    """Test endpoint for CSV generation"""
+    try:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        writer.writerow(["Test CSV Report"])
+        writer.writerow([f"Generated: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}"])
+        writer.writerow([])
+        writer.writerow(["Name", "Age", "City"])
+        writer.writerow(["John Doe", "30", "New York"])
+        writer.writerow(["Jane Smith", "25", "London"])
+        writer.writerow(["Bob Johnson", "35", "Tokyo"])
+        
+        output.seek(0)
+        
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode('utf-8-sig')),
+            media_type="text/csv; charset=utf-8-sig",
+            headers={"Content-Disposition": "attachment; filename=test_report.csv"}
+        )
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# --- PRODUCTION REPORT GENERATION ---
 @app.get("/reports/download")
 def download_report(
     type: str,
@@ -1075,52 +1189,84 @@ def download_report(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    # validate report type always
+    if type not in ('issues', 'mess'):
+        raise HTTPException(400, "Invalid report type")
+
+    # only admins can generate reports
     if user.role == 'student':
         raise HTTPException(403, "Admins only")
 
-    # 1. Advanced Date Logic (SAME AS BEFORE)
+    # 1. Advanced Date Logic
     query_date = datetime.now(IST)
     title_range = ""
 
+    # Ensure DB connection is healthy before heavy work
+    try:
+        db.execute(text("SELECT 1"))
+    except OperationalError:
+        db.rollback()
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Database temporarily unavailable. Please retry."}
+        )
+
     if type == 'issues':
         if report_range == 'today':
-            query_date = datetime.combine(datetime.now(IST).date(), datetime.min.time())
-            query_date = query_date.replace(tzinfo=IST)
+            query_date = datetime.combine(datetime.now(IST).date(), datetime.min.time()).replace(tzinfo=IST)
             title_range = "Today's Report"
+
         elif report_range == 'yesterday':
             yesterday = datetime.now(IST) - timedelta(days=1)
-            query_date = datetime.combine(yesterday.date(), datetime.min.time())
-            query_date = query_date.replace(tzinfo=IST)
+            query_date = datetime.combine(yesterday.date(), datetime.min.time()).replace(tzinfo=IST)
             title_range = "Since Yesterday"
+
         elif report_range == '3days':
             query_date = datetime.now(IST) - timedelta(days=3)
             title_range = "Last 3 Days"
+
         elif report_range == 'week':
             query_date = datetime.now(IST) - timedelta(weeks=1)
             title_range = "Past 7 Days"
+
         elif report_range == 'month':
             query_date = datetime.now(IST) - timedelta(days=30)
             title_range = "Last 30 Days"
+
+        elif report_range == '3months':
+            query_date = datetime.now(IST) - timedelta(days=90)
+            title_range = "Last 3 Months"
+
         elif report_range == 'semester':
             query_date = datetime.now(IST) - timedelta(days=180)
             title_range = "Full Semester History"
+
         else:
             query_date = datetime.min.replace(tzinfo=IST)
             title_range = "All Time History"
+
 
     elif type == 'mess':
         if report_range == 'week':
             query_date = datetime.now(IST) - timedelta(weeks=1)
             title_range = "This Week's Ratings"
+
         elif report_range == '2weeks':
             query_date = datetime.now(IST) - timedelta(weeks=2)
             title_range = "Last 2 Weeks"
+
         elif report_range == 'month':
             query_date = datetime.now(IST) - timedelta(days=30)
             title_range = "Last 30 Days"
+
+        elif report_range == '3months':
+            query_date = datetime.now(IST) - timedelta(days=90)
+            title_range = "Last 3 Months"
+
         elif report_range == 'semester':
             query_date = datetime.now(IST) - timedelta(days=180)
             title_range = "Full Semester History"
+
         else:
             query_date = datetime.min.replace(tzinfo=IST)
             title_range = "All Time History"
@@ -1173,10 +1319,13 @@ def download_report(
         headers = ["Date", "Mess Hall", "Hygiene", "Taste", "Quality", "Overall Rating", "Review"]
 
         total_ratings = len(rows)
-        avg_hygiene = round(sum(r.hygiene for r in rows if r.hygiene) / sum(1 for r in rows if r.hygiene), 2) if any(r.hygiene for r in rows) else 0
-        avg_taste = round(sum(r.taste for r in rows if r.taste) / sum(1 for r in rows if r.taste), 2) if any(r.taste for r in rows) else 0
-        avg_quality = round(sum(r.quality for r in rows if r.quality) / sum(1 for r in rows if r.quality), 2) if any(r.quality for r in rows) else 0
-        avg_overall = round((avg_hygiene + avg_taste + avg_quality) / 3, 2) if (avg_hygiene + avg_taste + avg_quality) > 0 else 0
+        if total_ratings > 0:
+            avg_hygiene = round(sum(r.hygiene for r in rows if r.hygiene) / sum(1 for r in rows if r.hygiene), 2) if any(r.hygiene for r in rows) else 0
+            avg_taste = round(sum(r.taste for r in rows if r.taste) / sum(1 for r in rows if r.taste), 2) if any(r.taste for r in rows) else 0
+            avg_quality = round(sum(r.quality for r in rows if r.quality) / sum(1 for r in rows if r.quality), 2) if any(r.quality for r in rows) else 0
+            avg_overall = round((avg_hygiene + avg_taste + avg_quality) / 3, 2) if (avg_hygiene + avg_taste + avg_quality) > 0 else 0
+        else:
+            avg_hygiene = avg_taste = avg_quality = avg_overall = 0
 
         stats_summary = {
             'total': total_ratings,
@@ -1212,7 +1361,7 @@ def download_report(
         )
         elements = []
         styles = getSampleStyleSheet()
-
+        
         # Define Custom Styles
         title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, fontName='Helvetica-Bold', textColor=colors.HexColor('#1e293b'), spaceAfter=0, alignment=2)  # RIGHT align
         subtitle_style = ParagraphStyle('CustomSubtitle', parent=styles['Normal'], fontSize=14, fontName='Helvetica', textColor=colors.HexColor('#64748b'), spaceAfter=20, alignment=0)
@@ -1312,7 +1461,6 @@ def download_report(
         elements.append(Paragraph("<b>Visual Analytics</b>", ParagraphStyle('SectionTitle', parent=styles['Heading2'], fontSize=14, fontName='Helvetica-Bold', textColor=colors.HexColor('#1e293b'), spaceAfter=15)))
 
         if type == 'issues' and stats_summary['total'] > 0:
-            # charts... (kept same as before)
             drawing1 = Drawing(250, 220)
             pie = Pie()
             pie.x = 50
@@ -1442,7 +1590,6 @@ def download_report(
                 ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
             ]))
 
-            # Color coding for status
             if type == 'issues':
                 for i in range(1, len(data) + 1):
                     status = data[i-1][5]
@@ -1468,7 +1615,7 @@ def download_report(
         doc.build(elements)
         buffer.seek(0)
         filename = f"CampusFix_{type}_{report_range}.pdf"
-        return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
     # Excel/CSV Export
     else:
@@ -1490,7 +1637,16 @@ def download_report(
 
         output.seek(0)
         filename = f"CampusFix_{type}_{report_range}.csv"
-        return StreamingResponse(io.BytesIO(output.getvalue().encode()), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename={filename}"})
+        content = output.getvalue()
+        
+        return StreamingResponse(
+            io.BytesIO(content.encode('utf-8-sig')), 
+            media_type="text/csv; charset=utf-8-sig",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": "text/csv; charset=utf-8-sig"
+            }
+        )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

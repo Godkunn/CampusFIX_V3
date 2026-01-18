@@ -1,4 +1,6 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AuthContext } from './auth/AuthContext';
+
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { LogOut, Menu, X } from 'lucide-react';
 import api from './api';
@@ -38,13 +40,19 @@ function ScrollToTopContainer() {
   return null;
 }
 
-// Context Definition
-const AuthContext = createContext(null);
-export const useAuth = () => useContext(AuthContext);
-
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(() => !!localStorage.getItem('token'));
+  const [user, setUser] = useState(() => {
+  const raw = localStorage.getItem('user');
+  try {
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+});
+
+const [loading, setLoading] = useState(() => {
+  return !!localStorage.getItem('token') && !localStorage.getItem('user');
+});
 
 useEffect(() => {
   if ('scrollRestoration' in window.history) {
@@ -55,42 +63,21 @@ useEffect(() => {
   // 1. Auth Check
 useEffect(() => {
   const token = localStorage.getItem('token');
-  const cachedUser = localStorage.getItem('user');
-  
-  if (!token) {
-    setLoading(false);
-    return;
-  }
-  
-  // Load cached user immediately (instant render)
-  if (cachedUser) {
-    try {
-      const userData = JSON.parse(cachedUser);
-      setUser(userData);
-      setLoading(false); // ← Render immediately with cached data
-    } catch (e) {
-      console.error('Invalid cached user data:', e);
-    }
-  }
-  
-  // Verify token in background
+  if (!token) return;
+
   api.get('/users/me')
     .then(res => {
       setUser(res.data);
       localStorage.setItem('user', JSON.stringify(res.data));
-      if (!cachedUser) setLoading(false); // Only set if not loaded from cache
+      setLoading(false);
     })
-    .catch((err) => {
-      console.error('Auth check failed:', err.message);
-      
-      // Only clear auth on real 401, not timeouts
+    .catch(err => {
       if (err.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
       }
-      
-      if (!cachedUser) setLoading(false);
+      setLoading(false);
     });
 }, []);
 
@@ -130,13 +117,21 @@ useEffect(() => {
     }
   }, []);
 
+  const clearApiCache = () => {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('api-cache:'))
+      .forEach(k => localStorage.removeItem(k));
+  };
+
   const login = (userData, token) => { 
+    clearApiCache();                 // 🔥 reset old cache
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData); 
   };
-  
+
   const logout = () => { 
+    clearApiCache();                 // 🔥 wipe cached data
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null); 
