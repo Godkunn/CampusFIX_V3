@@ -1,0 +1,17 @@
+fastapi==0.109.2
+uvicorn==0.27.1
+sqlalchemy==2.0.27
+pydantic==2.6.1
+pydantic[email]
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+python-dotenv
+bcrypt==3.2.0
+firebase-admin
+fastapi-mail
+reportlab
+httpx
+gspread
+oauth2client
+psycopg2-binary
