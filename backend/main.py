@@ -275,8 +275,8 @@ class MessRating(Base):
     __tablename__ = "mess_ratings"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    mess_name = Column(String)
-    week_start = Column(String)
+    mess_name = Column(String, index=True)
+    week_start = Column(String, index=True)
     hygiene = Column(Integer)
     taste = Column(Integer)
     quality = Column(Integer)
@@ -1103,88 +1103,9 @@ from reportlab.graphics.charts.piecharts import Pie
 IST = pytz.timezone('Asia/Kolkata')
 
 # ==========================================
-# 8. REPORT GENERATION (TEST & PRODUCTION)
+# 8. REPORT GENERATION (PRODUCTION)
 # ==========================================
 
-# --- SIMPLE TEST ENDPOINTS (Use these to verify it works first) ---
-@app.get("/test/report/pdf")
-def test_pdf_report():
-    """Test endpoint for PDF generation"""
-    try:
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter)
-        elements = []
-        
-        styles = getSampleStyleSheet()
-        elements.append(Paragraph("Test PDF Report", styles['Heading1']))
-        elements.append(Spacer(1, 20))
-        elements.append(Paragraph(f"Generated at: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}", styles['Normal']))
-        elements.append(Spacer(1, 20))
-        elements.append(Paragraph("✅ PDF Generation is Working!", styles['Normal']))
-        
-        # Simple table
-        data = [
-            ["Item", "Quantity", "Price"],
-            ["Apple", "5", "$10"],
-            ["Banana", "3", "$6"],
-            ["Orange", "7", "$14"]
-        ]
-        
-        table = Table(data)
-        table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 14),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
-            ('ALIGN', (0, 1), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 12),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ]))
-        
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
-        
-        return StreamingResponse(
-            buffer,
-            media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=test_report.pdf"}
-        )
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.get("/test/report/csv")
-def test_csv_report():
-    """Test endpoint for CSV generation"""
-    try:
-        output = io.StringIO()
-        writer = csv.writer(output)
-        
-        writer.writerow(["Test CSV Report"])
-        writer.writerow([f"Generated: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')}"])
-        writer.writerow([])
-        writer.writerow(["Name", "Age", "City"])
-        writer.writerow(["John Doe", "30", "New York"])
-        writer.writerow(["Jane Smith", "25", "London"])
-        writer.writerow(["Bob Johnson", "35", "Tokyo"])
-        
-        output.seek(0)
-        
-        return StreamingResponse(
-            io.BytesIO(output.getvalue().encode('utf-8-sig')),
-            media_type="text/csv; charset=utf-8-sig",
-            headers={"Content-Disposition": "attachment; filename=test_report.csv"}
-        )
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# --- PRODUCTION REPORT GENERATION ---
 @app.get("/reports/download")
 def download_report(
     type: str,
@@ -1193,6 +1114,7 @@ def download_report(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    print(f"REPORT: type={type}, range={report_range}, user={user.email}")
     # validate report type always
     if type not in ('issues', 'mess'):
         raise HTTPException(400, "Invalid report type")
