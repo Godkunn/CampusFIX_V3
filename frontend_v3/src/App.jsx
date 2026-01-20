@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AuthContext } from './auth/AuthContext';
+import { App as CapacitorApp } from '@capacitor/app';
 
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import { LogOut, Menu, X } from 'lucide-react';
@@ -61,30 +62,16 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
-  let handler;
-
-  const setupCapacitor = async () => {
-    try {
-      const { App: CapacitorApp } = await import(
-  /* @vite-ignore */ '@capacitor/app'
-);
-      handler = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
-        if (canGoBack) {
-          window.history.back();
-        } else {
-          CapacitorApp.exitApp();
-        }
-      });
-    } catch {
-      // We are on web (Render / browser) – Capacitor not available
-      console.log('Capacitor not present, skipping back button handler');
+  const handler = CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+    if (canGoBack) {
+      window.history.back();
+    } else {
+      CapacitorApp.exitApp();
     }
-  };
-
-  setupCapacitor();
+  });
 
   return () => {
-    if (handler) handler.remove();
+    handler.remove();
   };
 }, []);
 
