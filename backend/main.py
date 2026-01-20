@@ -11,6 +11,7 @@ from typing import Optional, List
 from enum import Enum
 from dotenv import load_dotenv
 from sqlalchemy import text
+from fastapi.encoders import jsonable_encoder
 
 # --- GOOGLE SHEETS IMPORTS ---
 import gspread
@@ -562,7 +563,7 @@ def google_login(g: GoogleLogin, db: Session = Depends(get_db)):
 # --- USER ROUTES ---
 @app.get("/users/me")
 def me(user: User = Depends(get_current_user)):
-    return user
+    return jsonable_encoder(user)
 
 @app.put("/users/me")
 def update_profile(u: UserUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -570,7 +571,7 @@ def update_profile(u: UserUpdate, user: User = Depends(get_current_user), db: Se
         setattr(user, key, value)
     db.commit()
     db.refresh(user)
-    return user
+    return jsonable_encoder(user)
 
 @app.put("/users/fcm-token")
 def update_fcm_token(t: TokenUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -588,7 +589,8 @@ def request_hostel_change(req: HostelRequest, user: User = Depends(get_current_u
 def get_all_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.role == 'student':
         raise HTTPException(403, "Not authorized")
-    return db.query(User).filter(User.role == 'student').all()
+    users = db.query(User).filter(User.role == 'student').all()
+    return jsonable_encoder(users)
 
 @app.post("/users/{id}/manage-hostel")
 def manage_hostel_request(id: int, act: HostelAction, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -866,10 +868,14 @@ def get_mess_analytics(
         }
 
     # 4. Compute Stats
-    avg_h = sum(r.hygiene for r in ratings) / total
-    avg_t = sum(r.taste for r in ratings) / total
-    avg_q = sum(r.quality for r in ratings) / total
-    overall = (avg_h + avg_t + avg_q) / 3
+    h_vals = [r.hygiene for r in ratings if r.hygiene is not None]
+    t_vals = [r.taste for r in ratings if r.taste is not None]
+    q_vals = [r.quality for r in ratings if r.quality is not None]
+
+    avg_h = (sum(h_vals) / len(h_vals)) if h_vals else 0
+    avg_t = (sum(t_vals) / len(t_vals)) if t_vals else 0
+    avg_q = (sum(q_vals) / len(q_vals)) if q_vals else 0
+    overall = (avg_h + avg_t + avg_q) / 3 if (avg_h or avg_t or avg_q) else 0
 
     # AI Sentiment Logic (Simple Heuristic)
     sentiment = "Neutral"
@@ -924,12 +930,7 @@ def create_issue(i: IssueCreate, background_tasks: BackgroundTasks, user: User =
 
     background_tasks.add_task(append_issue_to_sheet, new_issue, user)
 
-    return {
-        **new_issue.__dict__,
-        "owner_name": user.full_name,
-        "comments": [],
-        "owner_credit_score": user.credit_score
-    }
+    return jsonable_encoder(new_issue)
 
 @app.get("/issues")
 def list_issues(response: Response, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1245,7 +1246,7 @@ def download_report(
             loc = f"{r.sub_location[:10]}..." if r.sub_location and len(r.sub_location) > 10 else (r.sub_location or "-")
             data.append([
                 str(r.id),
-                r.created_at.strftime("%d %b %Y"),
+                r.created_at.strftime("%d %b %Y") if r.created_at else "-",
                 loc,
                 r.category or "-",
                 r.priority or "-",
@@ -1278,7 +1279,7 @@ def download_report(
             overall = round((r.hygiene + r.taste + r.quality) / 3, 1) if all([r.hygiene, r.taste, r.quality]) else "-"
             review_short = (r.review[:30] + '..') if r.review and len(r.review) > 30 else (r.review or "-")
             data.append([
-                r.created_at.strftime("%d %b %Y"),
+                r.created_at.strftime("%d %b %Y") if r.created_at else "-",
                 r.mess_name or "-",
                 str(r.hygiene) if r.hygiene else "-",
                 str(r.taste) if r.taste else "-",
